@@ -11,7 +11,6 @@ import logging
 import signal
 import threading
 import time
-from dataclasses import dataclass
 from typing import Iterable
 
 import dbus
@@ -19,6 +18,7 @@ import dbus.exceptions
 import dbus.mainloop.glib
 import dbus.service
 from evdev import InputDevice, ecodes, list_devices
+from hid_report import MouseState, build_hid_report
 from gi.repository import GLib
 
 LOG = logging.getLogger("mouse-bridge")
@@ -70,29 +70,6 @@ REPORT_MAP = bytes([
     0xC0,             #   End Collection
     0xC0,             # End Collection
 ])
-
-
-def clamp_i8(value: int) -> int:
-    return max(-127, min(127, int(value)))
-
-
-def build_hid_report(buttons: int, dx: int = 0, dy: int = 0, wheel: int = 0) -> bytes:
-    """Return the four-byte HID input report (buttons, X, Y, wheel)."""
-    return bytes((buttons & 0x07, clamp_i8(dx) & 0xFF,
-                  clamp_i8(dy) & 0xFF, clamp_i8(wheel) & 0xFF))
-
-
-@dataclass
-class MouseState:
-    buttons: int = 0
-    dx: int = 0
-    dy: int = 0
-    wheel: int = 0
-
-    def report(self) -> bytes:
-        result = build_hid_report(self.buttons, self.dx, self.dy, self.wheel)
-        self.dx = self.dy = self.wheel = 0
-        return result
 
 
 def device_is_mouse(device: InputDevice) -> bool:
@@ -299,6 +276,7 @@ class Advertisement(DBusObject):
         return {LE_ADV: {"Type": dbus.String("peripheral"),
                          "ServiceUUIDs": dbus.Array([HID_UUID], signature="s"),
                          "LocalName": dbus.String(self.local_name),
+                         "Appearance": dbus.UInt16(0x03C2),
                          "Includes": dbus.Array(["tx-power"], signature="s")}}
 
     @dbus.service.method("org.freedesktop.DBus.Properties", in_signature="ss", out_signature="v")
