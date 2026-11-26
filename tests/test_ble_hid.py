@@ -75,12 +75,14 @@ class BleHidDbusTests(unittest.TestCase):
         config.write_text(BUS_CONFIG)
         cls.daemon = subprocess.Popen(["dbus-daemon", "--config-file", str(config), "--print-address", "--nofork"],
                                       stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
-        cls.addClassCleanup(cls._stop_process, cls.daemon)
-        cls.addClassCleanup(shutil.rmtree, cls.tmp, ignore_errors=True)
+        # Works for a class (setUpClass) or a test instance (setUp).
+        cleanup = cls.addClassCleanup if isinstance(cls, type) else cls.addCleanup
+        cleanup(cls._stop_process, cls.daemon)
+        cleanup(shutil.rmtree, cls.tmp, ignore_errors=True)
         cls.address = cls.daemon.stdout.readline().strip()
         cls.fake = subprocess.Popen([sys.executable, str(HERE / "fake_bluez.py"), cls.address],
                                     stdout=subprocess.PIPE, text=True)
-        cls.addClassCleanup(cls._stop_process, cls.fake)
+        cleanup(cls._stop_process, cls.fake)
         assert cls.fake.stdout.readline().strip() == "ready"
         cls.bus = dbus.bus.BusConnection(cls.address)       # the bridge
         cls.client = dbus.bus.BusConnection(cls.address)    # plays the iPhone/BlueZ side

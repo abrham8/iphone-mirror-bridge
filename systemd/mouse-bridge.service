@@ -1,15 +1,20 @@
 [Unit]
-Description=iPhone Mirror Bridge BLE HID mouse
+Description=iPhone Mirror Bridge (BLE HID mouse/touchpad for iPhone)
+Documentation=https://github.com/abrham8/iphone-mirror-bridge
 After=bluetooth.service
-Wants=bluetooth.service
+Requires=bluetooth.service
 
 [Service]
 Type=simple
-User=root
-WorkingDirectory=/opt/iphone-mirror-bridge
-ExecStart=/usr/bin/python3 /opt/iphone-mirror-bridge/scripts/mouse_bridge.py
-Restart=on-failure
-RestartSec=3
+# Options such as --touchpad live in this file (written by scripts/install.sh).
+EnvironmentFile=-/etc/default/iphone-mirror-bridge
+ExecStart=/usr/bin/python3 /opt/iphone-mirror-bridge/scripts/mouse_bridge.py $BRIDGE_ARGS
+# Restart after adapter resets, resume from suspend, or input devices reappearing.
+Restart=always
+RestartSec=5
+# Exit code 3 = another copy already running; do not fight it.
+RestartPreventExitStatus=3
+RuntimeDirectory=iphone-mirror-bridge
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true

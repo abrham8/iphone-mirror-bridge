@@ -4,12 +4,12 @@ A Debian-first experiment for viewing and controlling a nearby iPhone from Linux
 
 ## Status
 
-Early hardware-integration project, now partly hardware-verified. First real test (Debian 13.8, kernel 7.3, BlueZ 5.82, Intel adapter, ASUS laptop touchpad, iPhone with AssistiveTouch): advertising, pairing, pointer movement, clicking, three-finger drag and Ctrl+F8 mode switching work. Scrolling, right-click, reconnect after reboot, and external-mouse mode still need testing. Treat it as experimental, not as a release.
+Early hardware-integration project, now partly hardware-verified. First real test (Debian 13.8, kernel 7.3, BlueZ 5.82, Intel adapter, ASUS laptop touchpad, iPhone with AssistiveTouch): advertising, pairing, automatic reconnect, pointer movement with acceptable latency, tap/press clicking, two-finger scrolling, three-finger drag and Ctrl+F8 mode switching work. Right-click, the boot service, reconnect after reboot, and external-mouse mode still need testing. Treat it as experimental, not as a release.
 
 | Component | Status |
 |---|---|
 | evdev mouse discovery and event parsing | Implemented; hardware testing needed |
-| Laptop touchpad (move, tap, click, two-finger scroll, three-finger drag) | Movement, clicks and three-finger drag verified on hardware |
+| Laptop touchpad (move, tap, click, two-finger scroll, three-finger drag) | Verified on hardware (right-click untested) |
 | HID mouse report descriptor and encoding | Implemented; descriptor validation needed |
 | BlueZ GATT HID service and advertisement | Verified with BlueZ 5.82 and iOS |
 | Pairing agent (Just Works, auto-trust) | Verified with iOS |
@@ -31,6 +31,14 @@ Enable **Settings → Accessibility → Touch → AssistiveTouch** on the iPhone
 
 > Warning: phone mode grabs the mouse from the local desktop. Keep a keyboard available. Ctrl+C or SIGTERM releases the mouse.
 
+## Start automatically at boot
+
+```bash
+sudo scripts/install.sh            # touchpad; or pass options, e.g. --device /dev/input/event3
+```
+
+This copies the bridge to `/opt/iphone-mirror-bridge` and enables `mouse-bridge.service`. It starts in laptop mode; press Ctrl+F8 to control the iPhone. Logs: `journalctl -u mouse-bridge -f`. After `git pull`, run the installer again to update. Remove with `sudo scripts/install.sh --uninstall`. Only one copy can run at a time, so stop the service (`sudo systemctl stop mouse-bridge`) before running the bridge by hand.
+
 ## Screen mirroring
 
 Install and run UxPlay separately using the user service in `systemd/uxplay.service`; see [Backend setup](docs/BACKEND_SETUP.md). The iPhone and Linux receiver must share a network that allows AirPlay discovery and traffic. UxPlay, BlueZ, and one-time pairing are system-level components and are not intended to be bundled in the AppImage.
@@ -48,8 +56,10 @@ Install and run UxPlay separately using the user service in `systemd/uxplay.serv
 - `scripts/ble_hid.py`: BlueZ GATT HID service, advertisement and pairing agent.
 - `scripts/hid_report.py`: HID report encoding and buffering (no dependencies).
 - `scripts/check_host.sh`: collects host details for hardware testing.
+- `scripts/install.sh`: installs/updates/removes the boot service.
+- `scripts/set_le_interval.sh`: optional BlueZ connection-interval tweak (not needed on the test laptop).
 - `tests/`: unit, D-Bus and end-to-end tests (`/usr/bin/python3 -m unittest discover -s tests -v`).
-- `systemd/`: draft service units.
+- `systemd/`: service units (bridge as a system service, UxPlay as a user service).
 - `docs/`: Debian, iPhone, and optional remote-access setup.
 
 Input events are processed locally. No cloud service or network relay is part of the bridge. Secure AirPlay and remote-desktop networks independently.

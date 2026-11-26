@@ -510,9 +510,31 @@ class BleHid:
         self.agent = PairingAgent(bus, self._trust_device) if use_agent else None
         self.report = self.app.report
         self.failed: Exception | None = None
+        self._watch_adapter()
         self.app_registered = False
         self.adv_registered = False
         self.agent_registered = False
+
+    def _watch_adapter(self):
+        """Fail (so systemd restarts us) if the adapter is powered off or removed."""
+        def on_props(interface, changed, invalidated):
+            if interface == ADAPTER and "Powered" in changed and not bool(changed["Powered"]):
+                self._adapter_lost("Bluetooth adapter was powered off")
+
+        def on_removed(path, interfaces):
+            if str(path) == self.adapter_path and ADAPTER in interfaces:
+                self._adapter_lost("Bluetooth adapter was removed")
+
+        self.bus.add_signal_receiver(on_props, signal_name="PropertiesChanged", dbus_interface=DBUS_PROPS,
+                                     bus_name=BLUEZ, path=self.adapter_path)
+        self.bus.add_signal_receiver(on_removed, signal_name="InterfacesRemoved", dbus_interface=DBUS_OM,
+                                     bus_name=BLUEZ, path="/")
+
+    def _adapter_lost(self, reason: str):
+        if self.failed is None:
+            LOG.error("%s; exiting so the service can restart", reason)
+            self.failed = RuntimeError(reason)
+            self.adv_registered = self.app_registered = self.agent_registered = False
 
     # -- startup -----------------------------------------------------------
     def start(self):

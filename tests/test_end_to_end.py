@@ -23,14 +23,12 @@ except ImportError:  # pragma: no cover
 class EndToEndTests(unittest.TestCase):
     _stop_process = staticmethod(BleHidDbusTests._stop_process)
 
-    @classmethod
-    def setUpClass(cls):
-        BleHidDbusTests.start_bus.__func__(cls)
-
     def setUp(self):
+        BleHidDbusTests.start_bus.__func__(self)  # fresh bus and fake BlueZ per test
         env = dict(os.environ, DBUS_SYSTEM_BUS_ADDRESS=self.address)
         self.bridge = subprocess.Popen(
-            [sys.executable, str(HERE / "run_bridge_with_fake_mouse.py"), "--start-active", "--debug", "--keep-conn-interval"],
+            [sys.executable, str(HERE / "run_bridge_with_fake_mouse.py"), "--start-active", "--debug", "--keep-conn-interval",
+             "--lock-file", str(Path(self.tmp) / "bridge.lock")],
             env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         self.addCleanup(self._stop_process, self.bridge)
 
@@ -67,6 +65,14 @@ class EndToEndTests(unittest.TestCase):
         log = self.fake_log()
         for entry in ("UnregisterAdvertisement", "UnregisterApplication", "UnregisterAgent"):
             self.assertTrue(any(line.startswith(entry) for line in log), (entry, log))
+
+    def test_adapter_power_off_exits_with_error(self):
+        wait_for(lambda: any(l.startswith("RegisterAdvertisement /") for l in self.fake_log()), timeout=10)
+        call(self.client.get_object("org.bluez", "/org/bluez/hci0").PowerOff, dbus_interface="test.FakeBlueZ")
+        wait_for(lambda: self.bridge.poll() is not None, timeout=10)
+        output = self.bridge.stdout.read()
+        self.assertEqual(self.bridge.returncode, 1, output)
+        self.assertIn("adapter was powered off", output)
 
 
 if __name__ == "__main__":

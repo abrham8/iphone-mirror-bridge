@@ -172,6 +172,19 @@ class BridgeControllerTests(unittest.TestCase):
         ctl.toggle()  # leaving phone mode is always allowed
         self.assertFalse(ctl.active or self.mouse.grabbed)
 
+    def test_only_one_instance_can_hold_the_lock(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            path = str(Path(tmp) / "sub" / "bridge.lock")
+            first = mouse_bridge.acquire_instance_lock(path)
+            self.assertIsNotNone(first)
+            self.assertIsNone(mouse_bridge.acquire_instance_lock(path))
+            first.close()
+            again = mouse_bridge.acquire_instance_lock(path)
+            self.assertIsNotNone(again)
+            again.close()
+
     def test_argument_parsing(self):
         args = mouse_bridge.parse_args(["--adapter", "hci1", "--no-agent", "--start-active"])
         self.assertEqual(args.adapter, "hci1")

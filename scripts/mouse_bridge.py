@@ -304,6 +304,24 @@ def capture_mouse(controller: BridgeController, stop: threading.Event, on_failur
             on_failure()
 
 
+# -- single instance -----------------------------------------------------------
+DEFAULT_LOCK_FILE = "/run/iphone-mirror-bridge/bridge.lock"
+
+
+def acquire_instance_lock(path: str):
+    """Return an open, exclusively locked file, or None if another bridge holds it."""
+    import fcntl
+    import os
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    handle = open(path, "a+")
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        handle.close()
+        return None
+    return handle
+
+
 # -- main --------------------------------------------------------------------
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
@@ -335,6 +353,7 @@ def parse_args(argv=None):
                              f"(default {DEFAULT_REPORT_INTERVAL_MS})")
     parser.add_argument("--keep-conn-interval", action="store_true",
                         help="Do not request a faster Bluetooth LE connection interval")
+    parser.add_argument("--lock-file", default=DEFAULT_LOCK_FILE, help=argparse.SUPPRESS)
     parser.add_argument("--debug", action="store_true")
     return parser.parse_args(argv)
 
@@ -344,6 +363,15 @@ def main(argv=None) -> int:
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
+    try:
+        lock = acquire_instance_lock(args.lock_file)
+    except OSError as exc:
+        LOG.error("Cannot create lock file %s: %s (run with sudo)", args.lock_file, exc)
+        return 2
+    if lock is None:
+        LOG.error("Another copy of the bridge is already running. If it is the boot service, stop it "
+                  "with: sudo systemctl stop mouse-bridge")
+        return 3
     dbus.mainloop.glib.threads_init()
     dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
     hotkey = ecodes.ecodes.get("KEY_" + args.hotkey.upper())

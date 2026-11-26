@@ -159,6 +159,15 @@ class Adapter(dbus.service.Object):
     def UnregisterAdvertisement(self, path):
         self.log.append(f"UnregisterAdvertisement {path}")
 
+    @dbus.service.signal("org.freedesktop.DBus.Properties", signature="sa{sv}as")
+    def PropertiesChanged(self, interface, changed, invalidated):
+        pass
+
+    @dbus.service.method("test.FakeBlueZ")
+    def PowerOff(self):
+        self.props["Powered"] = False
+        self.PropertiesChanged("org.bluez.Adapter1", {"Powered": dbus.Boolean(False)}, [])
+
     @dbus.service.method("test.FakeBlueZ", out_signature="as")
     def Log(self):
         return dbus.Array(self.log, signature="s")
