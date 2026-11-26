@@ -168,6 +168,7 @@ class MirrorController(QObject):
     # -- actions ----------------------------------------------------------------
     @Slot()
     def start(self):
+        LOG.info("Start screen mirroring requested (running=%s, starting=%s)", self._running, self._starting)
         if self._running or self._starting:
             return
         self._starting = True
@@ -191,6 +192,7 @@ class MirrorController(QObject):
     def _started(self, ok, output):
         self._starting = False
         self.startingChanged.emit()
+        LOG.info("Receiver start %s: %s", "succeeded" if ok else "FAILED", output or "(no output)")
         output = output.splitlines()
         if ok:
             self._running = True
