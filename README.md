@@ -12,7 +12,7 @@ Early hardware-integration project. The first mouse bridge implementation is pre
 | HID mouse report descriptor and encoding | Implemented; descriptor validation needed |
 | BlueZ GATT HID service and advertisement | Initial implementation; BlueZ/iOS testing needed |
 | Ctrl+F8 mode toggle and evdev grab | Implemented; desktop testing needed |
-| UxPlay service | Draft only |
+| UxPlay user service | Implemented; display/network testing needed |
 | AppImage | Not implemented |
 
 ## Debian quick start
@@ -29,7 +29,7 @@ Enable **Settings → Accessibility → Touch → AssistiveTouch** on the iPhone
 
 ## Screen mirroring
 
-Install and run UxPlay separately. The iPhone and Linux receiver must share a network that allows AirPlay discovery and traffic. UxPlay, BlueZ, and one-time pairing are system-level components and are not intended to be bundled in the AppImage.
+Install and run UxPlay separately using the user service in `systemd/uxplay.service`; see [Backend setup](docs/BACKEND_SETUP.md). The iPhone and Linux receiver must share a network that allows AirPlay discovery and traffic. UxPlay, BlueZ, and one-time pairing are system-level components and are not intended to be bundled in the AppImage.
 
 ## Limitations
 
