@@ -1,0 +1,2 @@
+# Debian system packages provide dbus-python and PyGObject; see docs/BACKEND_SETUP.md.
+evdev>=1.7.0
