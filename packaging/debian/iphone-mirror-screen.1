@@ -22,6 +22,17 @@ lets the iPhone through Wild OS's firewall: it marks the current network as
 Home and allows the ports above for devices on that network, through
 Wild OS's own settings tool (asks for an administrator password). When the
 receiver starts and that firewall would block it, a notification says so.
+.PP
+For low latency the receiver runs UxPlay with
+.B \-vsync no \-fps 60
+and, when available, the VA-API decoder with
+.B compliance=flexible
+(it otherwise holds several frames) and, on Wayland,
+.BR waylandsink .
+Set
+.B IPHONE_MIRROR_VIDEO_ARGS
+to replace these options. Wi-Fi power saving on the computer is the most
+common remaining cause of lag.
 .SH FILES
 .I ~/.cache/iphone-mirror-bridge/uxplay.log
 .SH SEE ALSO

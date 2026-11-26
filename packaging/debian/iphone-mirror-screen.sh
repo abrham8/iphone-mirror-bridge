@@ -67,6 +67,28 @@ allow_firewall() {
     notify "Firewall updated" "Devices on this network can now mirror to $NAME."
 }
 
+# Low-latency video options. -vsync no: show frames as they arrive instead of
+# holding them to match the audio. -fps 60: the iPhone's full frame rate.
+# vah264dec (VA-API, the GPU) is what GStreamer picks anyway, but by default it
+# holds 6-8 frames (~110 ms) of the iPhone's stream for reordering the iPhone
+# never does; compliance=flexible outputs each frame at once. On Wayland,
+# waylandsink shows the GPU frames without copying them.
+video_args() {
+    set -- -vsync no -fps 60
+    have=$(python3 -I -c '
+import gi
+gi.require_version("Gst", "1.0")
+from gi.repository import Gst
+Gst.init(None)
+print(*[n for n in ("vah264dec", "waylandsink") if Gst.ElementFactory.find(n)])
+' 2>/dev/null)
+    case " $have " in *" vah264dec "*) set -- "$@" -vd "vah264dec compliance=flexible" ;; esac
+    if [ -n "$WAYLAND_DISPLAY" ]; then
+        case " $have " in *" waylandsink "*) set -- "$@" -vs waylandsink ;; esac
+    fi
+    printf '%s\n' "$@"
+}
+
 running() { pgrep -u "$(id -u)" -x uxplay >/dev/null 2>&1; }
 
 start() {
@@ -82,7 +104,21 @@ start() {
     # -nh: exact name; -p: fixed ports (TCP 7000,7001,7100 / UDP 6000,6001,7011)
     # -key: keep the same identity so the iPhone recognises this receiver.
     # stdbuf: uxplay buffers output when not on a terminal; keep the log current.
-    nohup stdbuf -oL -eL uxplay -n "$NAME" -nh -p -key "$LOG_DIR/uxplay.pem" >"$LOG" 2>&1 &
+    # IPHONE_MIRROR_VIDEO_ARGS replaces the video options (e.g. "-vsync" for
+    # UxPlay's defaults).
+    if [ -n "${IPHONE_MIRROR_VIDEO_ARGS+x}" ]; then
+        # shellcheck disable=SC2086
+        set -- $IPHONE_MIRROR_VIDEO_ARGS
+    else
+        set --
+        nl='
+'
+        oldifs=$IFS; IFS=$nl
+        # shellcheck disable=SC2046
+        set -- $(video_args)
+        IFS=$oldifs
+    fi
+    nohup stdbuf -oL -eL uxplay -n "$NAME" -nh -p -key "$LOG_DIR/uxplay.pem" "$@" >"$LOG" 2>&1 &
     sleep 2
     if running; then
         notify "Ready for screen mirroring" "On the iPhone: Control Center > Screen Mirroring > $NAME"
