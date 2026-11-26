@@ -124,6 +124,7 @@ def release_device(device: InputDevice) -> None:
 
 class DBusObject(dbus.service.Object):
     def __init__(self, bus, path: str):
+        self.path = path
         super().__init__(bus, path)
 
 
