@@ -55,16 +55,27 @@ def validate_tree(objects):
     return len(services), len(chrcs)
 
 
+DEVICES = {
+    ADAPTER_PATH + "/dev_AA_BB_CC_DD_EE_FF": {"Address": "AA:BB:CC:DD:EE:FF", "Alias": "Test iPhone",
+                                              "Paired": True, "Connected": True, "Icon": "phone"},
+    ADAPTER_PATH + "/dev_11_22_33_44_55_66": {"Address": "11:22:33:44:55:66", "Alias": "Family iPad",
+                                              "Paired": True, "Connected": False, "Icon": "phone"},
+}
+
+
 class Root(dbus.service.Object):
     @dbus.service.method("org.freedesktop.DBus.ObjectManager", out_signature="a{oa{sa{sv}}}")
     def GetManagedObjects(self):
-        return {
+        objects = {
             dbus.ObjectPath(ADAPTER_PATH): {
                 "org.bluez.Adapter1": {"Powered": dbus.Boolean(True), "Address": "00:11:22:33:44:55"},
                 "org.bluez.GattManager1": {},
                 "org.bluez.LEAdvertisingManager1": {},
             },
         }
+        for path, props in DEVICES.items():
+            objects[dbus.ObjectPath(path)] = {"org.bluez.Device1": dbus.Dictionary(props, signature="sv")}
+        return objects
 
 
 class Agents(dbus.service.Object):
@@ -113,6 +124,11 @@ class Adapter(dbus.service.Object):
             return dbus.Array(["0000180a-0000-1000-8000-00805f9b34fb"], signature="s")
         raise dbus.exceptions.DBusException("no such property",
                                             name="org.freedesktop.DBus.Error.InvalidArgs")
+
+    @dbus.service.method("org.bluez.Adapter1", in_signature="o")
+    def RemoveDevice(self, path):
+        DEVICES.pop(str(path), None)
+        self.log.append(f"RemoveDevice {path}")
 
     @dbus.service.method("org.bluez.GattManager1", in_signature="oa{sv}",
                          sender_keyword="sender", async_callbacks=("ok", "err"))

@@ -290,3 +290,68 @@ class TouchpadTranslator:
         self._last = None
         self._frac_x = self._frac_y = 0.0
         self._scroll_mm = 0.0
+
+
+# -- keyboard ---------------------------------------------------------------
+# Linux evdev key codes -> USB HID Keyboard/Keypad usages (page 0x07).
+EVDEV_TO_HID = {
+    1: 0x29, 2: 0x1E, 3: 0x1F, 4: 0x20, 5: 0x21, 6: 0x22, 7: 0x23, 8: 0x24, 9: 0x25, 10: 0x26, 11: 0x27,
+    12: 0x2D, 13: 0x2E, 14: 0x2A, 15: 0x2B, 16: 0x14, 17: 0x1A, 18: 0x08, 19: 0x15, 20: 0x17, 21: 0x1C,
+    22: 0x18, 23: 0x0C, 24: 0x12, 25: 0x13, 26: 0x2F, 27: 0x30, 28: 0x28, 29: 0xE0, 30: 0x04, 31: 0x16,
+    32: 0x07, 33: 0x09, 34: 0x0A, 35: 0x0B, 36: 0x0D, 37: 0x0E, 38: 0x0F, 39: 0x33, 40: 0x34, 41: 0x35,
+    42: 0xE1, 43: 0x31, 44: 0x1D, 45: 0x1B, 46: 0x06, 47: 0x19, 48: 0x05, 49: 0x11, 50: 0x10, 51: 0x36,
+    52: 0x37, 53: 0x38, 54: 0xE5, 55: 0x55, 56: 0xE2, 57: 0x2C, 58: 0x39,
+    59: 0x3A, 60: 0x3B, 61: 0x3C, 62: 0x3D, 63: 0x3E, 64: 0x3F, 65: 0x40, 66: 0x41, 67: 0x42, 68: 0x43,
+    69: 0x53, 70: 0x47, 71: 0x5F, 72: 0x60, 73: 0x61, 74: 0x56, 75: 0x5C, 76: 0x5D, 77: 0x5E, 78: 0x57,
+    79: 0x59, 80: 0x5A, 81: 0x5B, 82: 0x62, 83: 0x63, 86: 0x64, 87: 0x44, 88: 0x45, 96: 0x58, 97: 0xE4,
+    98: 0x54, 99: 0x46, 100: 0xE6, 102: 0x4A, 103: 0x52, 104: 0x4B, 105: 0x50, 106: 0x4F, 107: 0x4D,
+    108: 0x51, 109: 0x4E, 110: 0x49, 111: 0x4C, 119: 0x48, 125: 0xE3, 126: 0xE7, 127: 0x65,
+}
+
+# Consumer-page usages used by the UI buttons.
+CONSUMER_HOME = 0x0223          # AC Home
+
+
+class KeyboardState:
+    """Tracks pressed keys and builds 8-byte boot-keyboard input reports."""
+
+    MAX_KEYS = 6
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._modifiers = 0
+        self._keys: list[int] = []
+
+    def key(self, evdev_code: int, pressed: bool) -> bytes | None:
+        """Apply a key event; return the new report, or None if unmapped/unchanged."""
+        usage = EVDEV_TO_HID.get(int(evdev_code))
+        if usage is None:
+            return None
+        with self._lock:
+            before = (self._modifiers, tuple(self._keys))
+            if 0xE0 <= usage <= 0xE7:
+                bit = 1 << (usage - 0xE0)
+                self._modifiers = self._modifiers | bit if pressed else self._modifiers & ~bit
+            elif pressed:
+                if usage not in self._keys and len(self._keys) < self.MAX_KEYS:
+                    self._keys.append(usage)
+            elif usage in self._keys:
+                self._keys.remove(usage)
+            if (self._modifiers, tuple(self._keys)) == before:
+                return None
+            return self._report_locked()
+
+    def release_all(self) -> bytes:
+        with self._lock:
+            self._modifiers = 0
+            self._keys.clear()
+            return self._report_locked()
+
+    def _report_locked(self) -> bytes:
+        keys = self._keys + [0] * (self.MAX_KEYS - len(self._keys))
+        return bytes([self._modifiers, 0, *keys])
+
+
+def consumer_report(usage: int) -> bytes:
+    """Two-byte consumer-control report (little endian); 0 releases."""
+    return int(usage).to_bytes(2, "little")

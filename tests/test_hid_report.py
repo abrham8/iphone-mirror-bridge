@@ -3,7 +3,8 @@ from pathlib import Path
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from hid_report import HotkeyDetector, MouseState, ReportAccumulator, TouchpadTranslator, build_hid_report
+from hid_report import (CONSUMER_HOME, HotkeyDetector, KeyboardState, MouseState, ReportAccumulator,
+                        TouchpadTranslator, build_hid_report, consumer_report)
 
 
 def decode(report):
@@ -253,6 +254,38 @@ class TouchpadTranslatorTests(unittest.TestCase):
         self.pad.set_click(False)
         self.lift()
         self.assertEqual(self.reports(), [(1, 0, 0, 0), (1, 20, 0, 0), (0, 0, 0, 0)])
+
+
+class KeyboardStateTests(unittest.TestCase):
+    SHIFT, A, B, META, SPACE = 42, 30, 48, 125, 57
+
+    def test_shift_a(self):
+        kb = KeyboardState()
+        self.assertEqual(kb.key(self.SHIFT, True), bytes([0x02, 0, 0, 0, 0, 0, 0, 0]))
+        self.assertEqual(kb.key(self.A, True), bytes([0x02, 0, 0x04, 0, 0, 0, 0, 0]))
+        self.assertIsNone(kb.key(self.A, True))  # autorepeat: unchanged
+        self.assertEqual(kb.key(self.A, False), bytes([0x02, 0, 0, 0, 0, 0, 0, 0]))
+        self.assertEqual(kb.key(self.SHIFT, False), bytes(8))
+
+    def test_meta_space_maps_to_gui(self):
+        kb = KeyboardState()
+        kb.key(self.META, True)
+        self.assertEqual(kb.key(self.SPACE, True), bytes([0x08, 0, 0x2C, 0, 0, 0, 0, 0]))
+
+    def test_rollover_limit_and_release_all(self):
+        kb = KeyboardState()
+        for code in (16, 17, 18, 19, 20, 21, 22):  # Q W E R T Y U
+            kb.key(code, True)
+        report = kb.key(23, True)  # 8th key ignored
+        self.assertIsNone(report)
+        self.assertEqual(kb.release_all(), bytes(8))
+
+    def test_unmapped_key(self):
+        self.assertIsNone(KeyboardState().key(9999, True))
+
+    def test_consumer_home(self):
+        self.assertEqual(consumer_report(CONSUMER_HOME), bytes([0x23, 0x02]))
+        self.assertEqual(consumer_report(0), bytes(2))
 
 
 if __name__ == "__main__":

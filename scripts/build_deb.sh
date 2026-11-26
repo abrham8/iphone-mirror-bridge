@@ -13,6 +13,7 @@ deb=packaging/debian
 
 install -d "$root/DEBIAN" "$root/usr/bin" "$root/usr/lib/$pkg" "$root/usr/share/man/man1" \
            "$root/usr/share/applications" "$root/usr/share/icons/hicolor/scalable/apps" \
+           "$root/usr/share/dbus-1/system.d" \
            "$root/usr/lib/systemd/system" "$root/etc/$pkg" "$root/usr/share/doc/$pkg"
 
 sed "s/@VERSION@/$version/" "$deb/control.in" > "$root/DEBIAN/control"
@@ -23,7 +24,8 @@ install -m 0755 "$deb/iphone-mirror-bridge.sh" "$root/usr/bin/$pkg"
 install -m 0755 "$deb/iphone-mirror-screen.sh" "$root/usr/bin/iphone-mirror-screen"
 install -m 0644 "$deb/iphone-mirror-screen.desktop" "$root/usr/share/applications/"
 install -m 0644 "$deb/iphone-mirror-bridge.svg" "$root/usr/share/icons/hicolor/scalable/apps/"
-install -m 0644 scripts/mouse_bridge.py scripts/ble_hid.py scripts/hid_report.py "$root/usr/lib/$pkg/"
+install -m 0644 scripts/mouse_bridge.py scripts/ble_hid.py scripts/hid_report.py scripts/control.py "$root/usr/lib/$pkg/"
+install -m 0644 "$deb/io.github.abrham8.IPhoneMirrorBridge.conf" "$root/usr/share/dbus-1/system.d/"
 install -m 0644 "$deb/iphone-mirror-bridge.service" "$root/usr/lib/systemd/system/"
 install -m 0644 "$deb/bridge.conf" "$root/etc/$pkg/bridge.conf"
 install -m 0644 "$deb/copyright" "$root/usr/share/doc/$pkg/copyright"

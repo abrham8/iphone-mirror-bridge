@@ -14,6 +14,8 @@ RestartSec=5
 # Exit code 3 = another copy is already running.
 RestartPreventExitStatus=3
 RuntimeDirectory=iphone-mirror-bridge
+# Settings changed in the desktop app: /var/lib/iphone-mirror-bridge/settings.json
+StateDirectory=iphone-mirror-bridge
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true

@@ -7,7 +7,9 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from test_ble_hid import HAVE_DBUS, HERE, BleHidDbusTests, call, wait_for
+import test_ble_hid
+from test_ble_hid import HAVE_DBUS, HERE, call, wait_for
+
 
 if HAVE_DBUS:
     import dbus
@@ -21,14 +23,15 @@ except ImportError:  # pragma: no cover
 
 @unittest.skipUnless(HAVE_DBUS and HAVE_EVDEV, "dbus-python, PyGObject, evdev and dbus-daemon are required")
 class EndToEndTests(unittest.TestCase):
-    _stop_process = staticmethod(BleHidDbusTests._stop_process)
+    _stop_process = staticmethod(test_ble_hid.BleHidDbusTests._stop_process)
 
     def setUp(self):
-        BleHidDbusTests.start_bus.__func__(self)  # fresh bus and fake BlueZ per test
+        test_ble_hid.BleHidDbusTests.start_bus.__func__(self)  # fresh bus and fake BlueZ per test
         env = dict(os.environ, DBUS_SYSTEM_BUS_ADDRESS=self.address)
         self.bridge = subprocess.Popen(
             [sys.executable, str(HERE / "run_bridge_with_fake_mouse.py"), "--start-active", "--debug", "--keep-conn-interval",
-             "--lock-file", str(Path(self.tmp) / "bridge.lock")],
+             "--lock-file", str(Path(self.tmp) / "bridge.lock"),
+             "--settings-file", str(Path(self.tmp) / "settings.json")],
             env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         self.addCleanup(self._stop_process, self.bridge)
 
@@ -38,7 +41,7 @@ class EndToEndTests(unittest.TestCase):
 
     def test_reports_flow_and_shutdown_releases(self):
         wait_for(lambda: any(l.startswith("RegisterAdvertisement /") for l in self.fake_log()), timeout=10)
-        self.assertIn("RegisterApplication /com/iphone_mirror_bridge services=2 chrcs=6", self.fake_log())
+        self.assertIn("RegisterApplication /com/iphone_mirror_bridge services=2 chrcs=8", self.fake_log())
         sender = next(l.split()[1] for l in self.fake_log() if l.startswith("sender "))
         objects = call(dbus.Interface(self.client.get_object(sender, ble_hid.GattApplication.ROOT),
                                       ble_hid.DBUS_OM).GetManagedObjects)
@@ -61,6 +64,7 @@ class EndToEndTests(unittest.TestCase):
         self.assertEqual(self.bridge.returncode, 0, output)
         wait_for(lambda: received[-1] == bytes(4), timeout=2)
         self.assertIn("ungrabbed", output)
+        self.assertIn("Control API available", output)
         self.assertIn("already provides a Device Information service", output)
         log = self.fake_log()
         for entry in ("UnregisterAdvertisement", "UnregisterApplication", "UnregisterAgent"):

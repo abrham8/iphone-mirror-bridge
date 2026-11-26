@@ -32,6 +32,8 @@ class DebPackageTests(unittest.TestCase):
                      "./usr/lib/iphone-mirror-bridge/mouse_bridge.py",
                      "./usr/lib/iphone-mirror-bridge/ble_hid.py",
                      "./usr/lib/iphone-mirror-bridge/hid_report.py",
+                     "./usr/lib/iphone-mirror-bridge/control.py",
+                     "./usr/share/dbus-1/system.d/io.github.abrham8.IPhoneMirrorBridge.conf",
                      "./usr/lib/systemd/system/iphone-mirror-bridge.service",
                      "./etc/iphone-mirror-bridge/bridge.conf",
                      "./usr/share/man/man1/iphone-mirror-bridge.1.gz",

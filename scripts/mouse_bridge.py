@@ -16,10 +16,12 @@ from typing import Iterable
 
 import dbus
 import dbus.mainloop.glib
+import dbus.service
 from evdev import InputDevice, ecodes, list_devices
 from gi.repository import GLib
 
 from ble_hid import BleHid, adapter_provides_device_info, find_adapter, set_le_connection_interval
+from control import BUS_NAME, DEFAULT_SETTINGS_PATH, BridgeControl, SettingsStore, logind_authorizer
 from hid_report import HotkeyDetector, ReportAccumulator, TouchpadTranslator
 
 __version__ = "0.1.0"
@@ -336,7 +338,9 @@ def acquire_instance_lock(path: str):
 
 
 # -- main --------------------------------------------------------------------
-def parse_args(argv=None):
+def parse_args(argv=None, defaults: dict | None = None):
+    """Parse options. `defaults` (from the UI's saved settings) replace the
+    built-in defaults; options given explicitly on the command line win."""
     parser = argparse.ArgumentParser(prog="iphone-mirror-bridge", description=__doc__)
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("--device", help="Mouse or touchpad /dev/input/eventN (default: built-in "
@@ -370,13 +374,37 @@ def parse_args(argv=None):
                              f"(default {DEFAULT_REPORT_INTERVAL_MS})")
     parser.add_argument("--keep-conn-interval", action="store_true",
                         help="Do not request a faster Bluetooth LE connection interval")
+    parser.add_argument("--no-keyboard", action="store_true",
+                        help="Act as a mouse only (no typing or Home button; re-pair after changing)")
+    parser.add_argument("--pairing", choices=("code", "just-works"), default="code",
+                        help="code: iPhone asks for a 6-digit code shown here (default); "
+                             "just-works: no code")
+    parser.add_argument("--settings-file", default=DEFAULT_SETTINGS_PATH,
+                        help="Settings saved by the UI (default %(default)s)")
     parser.add_argument("--lock-file", default=DEFAULT_LOCK_FILE, help=argparse.SUPPRESS)
     parser.add_argument("--debug", action="store_true")
-    return parser.parse_args(argv)
+    if defaults:
+        parser.set_defaults(**defaults)
+        if defaults.get("touchpad") and defaults.get("mouse"):
+            parser.set_defaults(mouse=False)
+    args = parser.parse_args(argv)
+    if args.touchpad and args.mouse:  # one from settings, the other from the command line
+        explicit = argv if argv is not None else sys.argv[1:]
+        args.touchpad = "--touchpad" in explicit
+        args.mouse = not args.touchpad
+    return args
+
+
+def load_settings(argv=None) -> SettingsStore:
+    pre = argparse.ArgumentParser(add_help=False)
+    pre.add_argument("--settings-file", default=DEFAULT_SETTINGS_PATH)
+    known, _ = pre.parse_known_args(argv)
+    return SettingsStore(known.settings_file)
 
 
 def main(argv=None) -> int:
-    args = parse_args(argv)
+    settings = load_settings(argv)
+    args = parse_args(argv, settings.as_parser_defaults())
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -435,8 +463,12 @@ def main(argv=None) -> int:
                      CONN_INTERVAL_MIN * 1.25, CONN_INTERVAL_MAX * 1.25,
                      old_interval[0] * 1.25, old_interval[1] * 1.25)
 
+    control_ref = {}
     ble = BleHid(bus, adapter, args.name, use_agent=not args.no_agent,
-                 include_device_info=include_device_info)
+                 include_device_info=include_device_info, keyboard=not args.no_keyboard,
+                 pairing=args.pairing,
+                 on_passkey=lambda dev, code: control_ref["c"].passkey(dev, code) if "c" in control_ref else None,
+                 on_pairing_cancel=lambda: control_ref["c"].pairing_cancelled() if "c" in control_ref else None)
     ble_ref["ble"] = ble
     stop = threading.Event()
     loop = GLib.MainLoop()
@@ -499,6 +531,16 @@ def main(argv=None) -> int:
         if old_interval:
             set_le_connection_interval(hci, *old_interval)
         return 1
+
+    control_ref["c"] = BridgeControl(
+        bus, controller=controller, ble=ble, adapter_path=adapter, settings=settings,
+        authorize=logind_authorizer(bus), input_kind="touchpad" if touchpad else "mouse",
+        version=__version__, on_restart=lambda: shutdown(0))
+    try:
+        control_ref["name"] = dbus.service.BusName(BUS_NAME, bus, do_not_queue=True)
+        LOG.info("Control API available for the desktop app")
+    except dbus.DBusException as exc:
+        LOG.warning("Desktop app control API unavailable (%s). Is the D-Bus policy file installed?", exc)
 
     GLib.timeout_add(max(1, args.report_interval), flush)
     GLib.timeout_add(250, monitor_ble)

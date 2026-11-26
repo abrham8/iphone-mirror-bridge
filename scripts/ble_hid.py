@@ -51,7 +51,10 @@ MANUFACTURER_UUID = uuid16(0x2A29)
 PNP_ID_UUID = uuid16(0x2A50)
 
 APPEARANCE_MOUSE = 0x03C2
+APPEARANCE_HID = 0x03C0
 REPORT_ID = 1
+KEYBOARD_REPORT_ID = 2
+CONSUMER_REPORT_ID = 3
 
 # Mouse, report ID 1: buttons (1 byte), relative X/Y/wheel (signed bytes).
 REPORT_MAP = bytes([
@@ -82,6 +85,50 @@ REPORT_MAP = bytes([
     0x95, 0x03,       #     Report Count (3)
     0x81, 0x06,       #     Input (Data, Variable, Relative)
     0xC0,             #   End Collection
+    0xC0,             # End Collection
+])
+
+# Keyboard, report ID 2: modifiers, reserved, 6 key usages (boot keyboard layout).
+KEYBOARD_REPORT_MAP = bytes([
+    0x05, 0x01,       # Usage Page (Generic Desktop)
+    0x09, 0x06,       # Usage (Keyboard)
+    0xA1, 0x01,       # Collection (Application)
+    0x85, KEYBOARD_REPORT_ID,
+    0x05, 0x07,       #   Usage Page (Keyboard/Keypad)
+    0x19, 0xE0,       #   Usage Minimum (Left Control)
+    0x29, 0xE7,       #   Usage Maximum (Right GUI)
+    0x15, 0x00,       #   Logical Minimum (0)
+    0x25, 0x01,       #   Logical Maximum (1)
+    0x75, 0x01,       #   Report Size (1)
+    0x95, 0x08,       #   Report Count (8)
+    0x81, 0x02,       #   Input (Data, Variable, Absolute): modifiers
+    0x95, 0x01,       #   Report Count (1)
+    0x75, 0x08,       #   Report Size (8)
+    0x81, 0x01,       #   Input (Constant): reserved
+    0x95, 0x06,       #   Report Count (6)
+    0x75, 0x08,       #   Report Size (8)
+    0x15, 0x00,       #   Logical Minimum (0)
+    0x26, 0xE7, 0x00, #   Logical Maximum (231); 2 bytes, a 1-byte 0xE7 would be -25
+    0x05, 0x07,       #   Usage Page (Keyboard/Keypad)
+    0x19, 0x00,       #   Usage Minimum (0)
+    0x29, 0xE7,       #   Usage Maximum (231)
+    0x81, 0x00,       #   Input (Data, Array): keys
+    0xC0,             # End Collection
+])
+
+# Consumer control, report ID 3: one 16-bit usage (e.g. 0x0223 AC Home).
+CONSUMER_REPORT_MAP = bytes([
+    0x05, 0x0C,       # Usage Page (Consumer)
+    0x09, 0x01,       # Usage (Consumer Control)
+    0xA1, 0x01,       # Collection (Application)
+    0x85, CONSUMER_REPORT_ID,
+    0x15, 0x00,       #   Logical Minimum (0)
+    0x26, 0xFF, 0x03, #   Logical Maximum (1023)
+    0x19, 0x00,       #   Usage Minimum (0)
+    0x2A, 0xFF, 0x03, #   Usage Maximum (1023)
+    0x75, 0x10,       #   Report Size (16)
+    0x95, 0x01,       #   Report Count (1)
+    0x81, 0x00,       #   Input (Data, Array)
     0xC0,             # End Collection
 ])
 
@@ -289,14 +336,15 @@ def _accept_control_point(value: bytes) -> bytes:
 class GattApplication(PropertiesObject):
     ROOT = "/com/iphone_mirror_bridge"
 
-    def __init__(self, bus, include_device_info: bool = True):
+    def __init__(self, bus, include_device_info: bool = True, keyboard: bool = True):
         super().__init__(bus, self.ROOT)
         self.bus = bus
         self.services: list[Service] = []
+        report_map = REPORT_MAP + (KEYBOARD_REPORT_MAP + CONSUMER_REPORT_MAP if keyboard else b"")
 
         hid = self._add_service(HID_UUID)
         hid.add_characteristic(HID_INFO_UUID, ["encrypt-read"], HID_INFORMATION)
-        hid.add_characteristic(REPORT_MAP_UUID, ["encrypt-read"], REPORT_MAP)
+        hid.add_characteristic(REPORT_MAP_UUID, ["encrypt-read"], report_map)
         hid.add_characteristic(HID_CONTROL_UUID, ["write-without-response", "encrypt-write"], b"\x00",
                                on_write=_accept_control_point)
         hid.add_characteristic(PROTOCOL_MODE_UUID, ["encrypt-read", "write-without-response", "encrypt-write"],
@@ -304,6 +352,14 @@ class GattApplication(PropertiesObject):
         self.report = hid.add_characteristic(REPORT_UUID, ["encrypt-read", "encrypt-notify"], build_hid_report(0))
         # Report Reference: report ID 1, type 1 = input report.
         self.report.add_descriptor(REPORT_REF_UUID, ["encrypt-read"], bytes([REPORT_ID, 0x01]))
+        self.keyboard_report = self.consumer_report = None
+        if keyboard:
+            self.keyboard_report = hid.add_characteristic(REPORT_UUID, ["encrypt-read", "encrypt-notify"], bytes(8))
+            self.keyboard_report.add_descriptor(REPORT_REF_UUID, ["encrypt-read"],
+                                                bytes([KEYBOARD_REPORT_ID, 0x01]))
+            self.consumer_report = hid.add_characteristic(REPORT_UUID, ["encrypt-read", "encrypt-notify"], bytes(2))
+            self.consumer_report.add_descriptor(REPORT_REF_UUID, ["encrypt-read"],
+                                                bytes([CONSUMER_REPORT_ID, 0x01]))
 
         battery = self._add_service(BATTERY_UUID)
         self.battery_level = battery.add_characteristic(BATTERY_LEVEL_UUID, ["read", "notify"], bytes([100]))
@@ -339,9 +395,10 @@ class GattApplication(PropertiesObject):
 class Advertisement(PropertiesObject):
     PATH = "/com/iphone_mirror_bridge/advertisement0"
 
-    def __init__(self, bus, local_name: str):
+    def __init__(self, bus, local_name: str, appearance: int = APPEARANCE_MOUSE):
         super().__init__(bus, self.PATH)
         self.local_name = local_name
+        self.appearance = appearance
 
     def get_properties(self):
         # Legacy advertising data is limited to 31 bytes: flags (3) + HID UUID (4)
@@ -350,7 +407,7 @@ class Advertisement(PropertiesObject):
                          "Discoverable": dbus.Boolean(True),
                          "ServiceUUIDs": dbus.Array([HID_UUID], signature="s"),
                          "LocalName": dbus.String(self.local_name),
-                         "Appearance": dbus.UInt16(APPEARANCE_MOUSE)}}
+                         "Appearance": dbus.UInt16(self.appearance)}}
 
     @dbus.service.method(LE_ADV)
     def Release(self):
@@ -358,18 +415,25 @@ class Advertisement(PropertiesObject):
 
 
 class PairingAgent(dbus.service.Object):
-    """NoInputNoOutput agent: accepts "Just Works" pairing and trusts the device.
+    """BlueZ pairing agent.
 
-    BlueZ rejects incoming pairing when no agent is registered, so without
-    this (or a desktop agent) the iPhone cannot bond.
+    "DisplayOnly" (default): the iPhone asks for a 6-digit code that this
+    computer shows (on_passkey is called with it; the UI displays it).
+    "NoInputNoOutput": "Just Works" pairing with no code.
+    Accepted devices are marked trusted so they can reconnect. BlueZ rejects
+    incoming pairing when no agent is registered.
     """
 
     PATH = "/com/iphone_mirror_bridge/agent"
-    CAPABILITY = "NoInputNoOutput"
+    CAPABILITY = "DisplayOnly"
 
-    def __init__(self, bus, on_accept: Callable[[str], None] | None = None):
+    def __init__(self, bus, on_accept: Callable[[str], None] | None = None,
+                 capability: str = CAPABILITY, on_passkey=None, on_cancel=None):
         super().__init__(bus, self.PATH)
         self.on_accept = on_accept
+        self.capability = capability
+        self.on_passkey = on_passkey
+        self.on_cancel = on_cancel
 
     def _accept(self, device):
         LOG.info("Accepting pairing/authorization from %s", device)
@@ -394,14 +458,23 @@ class PairingAgent(dbus.service.Object):
 
     @dbus.service.method(AGENT, in_signature="ouq")
     def DisplayPasskey(self, device, passkey, entered):
-        LOG.info("Passkey for %s: %06d", device, passkey)
+        code = f"{int(passkey):06d}"
+        if int(entered) == 0:
+            LOG.info("Pairing code for %s: %s (enter it on the iPhone)", device, code)
+        if self.on_passkey:
+            self.on_passkey(str(device), code)
+        self._accept(device)
 
     @dbus.service.method(AGENT, in_signature="os")
     def DisplayPinCode(self, device, pincode):
         LOG.info("PIN code for %s: %s", device, pincode)
+        if self.on_passkey:
+            self.on_passkey(str(device), str(pincode))
 
     @dbus.service.method(AGENT, in_signature="ou")
     def RequestConfirmation(self, device, passkey):
+        if self.on_passkey:
+            self.on_passkey(str(device), f"{int(passkey):06d}")
         self._accept(device)
 
     @dbus.service.method(AGENT, in_signature="o")
@@ -411,6 +484,8 @@ class PairingAgent(dbus.service.Object):
     @dbus.service.method(AGENT)
     def Cancel(self):
         LOG.info("Pairing request cancelled")
+        if self.on_cancel:
+            self.on_cancel()
 
 
 def find_adapter(bus, requested: str | None = None) -> str:
@@ -498,16 +573,19 @@ class BleHid:
     """Registers the GATT app, advertisement and agent with BlueZ."""
 
     def __init__(self, bus, adapter_path: str, local_name: str, use_agent: bool = True,
-                 include_device_info: bool = True):
+                 include_device_info: bool = True, keyboard: bool = True,
+                 pairing: str = "code", on_passkey=None, on_pairing_cancel=None):
         self.bus = bus
         self.adapter_path = adapter_path
         adapter = bus.get_object(BLUEZ, adapter_path)
         self.adapter_props = dbus.Interface(adapter, DBUS_PROPS)
         self.gatt = dbus.Interface(adapter, GATT_MANAGER)
         self.advertising = dbus.Interface(adapter, LE_ADV_MANAGER)
-        self.app = GattApplication(bus, include_device_info)
-        self.adv = Advertisement(bus, local_name)
-        self.agent = PairingAgent(bus, self._trust_device) if use_agent else None
+        self.app = GattApplication(bus, include_device_info, keyboard=keyboard)
+        self.adv = Advertisement(bus, local_name, APPEARANCE_HID if keyboard else APPEARANCE_MOUSE)
+        capability = "NoInputNoOutput" if pairing == "just-works" else "DisplayOnly"
+        self.agent = (PairingAgent(bus, self._trust_device, capability, on_passkey, on_pairing_cancel)
+                      if use_agent else None)
         self.report = self.app.report
         self.failed: Exception | None = None
         self._watch_adapter()
@@ -551,14 +629,14 @@ class BleHid:
     def _register_agent(self):
         manager = dbus.Interface(self.bus.get_object(BLUEZ, "/org/bluez"), AGENT_MANAGER)
         try:
-            manager.RegisterAgent(dbus.ObjectPath(PairingAgent.PATH), PairingAgent.CAPABILITY)
+            manager.RegisterAgent(dbus.ObjectPath(PairingAgent.PATH), self.agent.capability)
             self.agent_registered = True
         except dbus.DBusException as exc:
             LOG.warning("Could not register pairing agent: %s", exc)
             return
         try:
             manager.RequestDefaultAgent(dbus.ObjectPath(PairingAgent.PATH))
-            LOG.info("Pairing agent registered (%s)", PairingAgent.CAPABILITY)
+            LOG.info("Pairing agent registered (%s)", self.agent.capability)
         except dbus.DBusException as exc:
             LOG.warning("Pairing agent registered but is not the default agent: %s", exc)
 
@@ -611,8 +689,20 @@ class BleHid:
         return self.report.notifying
 
     def send(self, report: bytes) -> None:
-        """Send one input report. Must be called from the GLib main loop thread."""
+        """Send one mouse input report. Must be called from the GLib main loop thread."""
         self.report.notify(report)
+
+    @property
+    def keyboard_subscribed(self) -> bool:
+        return self.app.keyboard_report is not None and self.app.keyboard_report.notifying
+
+    def send_keyboard(self, report: bytes) -> None:
+        if self.app.keyboard_report is not None:
+            self.app.keyboard_report.notify(report)
+
+    def send_consumer(self, report: bytes) -> None:
+        if self.app.consumer_report is not None:
+            self.app.consumer_report.notify(report)
 
     # -- shutdown ----------------------------------------------------------
     def stop(self):
