@@ -93,8 +93,8 @@ class FrameSource(QObject):
 
     def _on_end(self, _bus, message):
         if message.type == Gst.MessageType.ERROR:
-            err, _dbg = message.parse_error()
-            LOG.debug("Video source ended: %s", err.message)
+            err, dbg = message.parse_error()
+            LOG.debug("Video source ended: %s (%s)", err.message, dbg)
         self._teardown()
         if self._wanted:
             self._retry.start()
