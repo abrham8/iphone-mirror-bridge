@@ -102,3 +102,7 @@ sudo scripts/install.sh                         # build and install the .deb
 Hardware results so far (Debian 13.8 with Kicksecure hardening, kernel 7.3, BlueZ 5.82, Intel Bluetooth, ASUS touchpad): .deb install, boot service, reconnect after reboot, pairing, movement, clicks, right-click, scrolling, three-finger drag and mode switching verified. Not yet verified: external mouse mode, other adapters and distributions.
 
 Input stays on your computer and Bluetooth link; there is no cloud service.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
