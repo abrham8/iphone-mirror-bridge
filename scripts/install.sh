@@ -15,4 +15,5 @@ tmp=$(mktemp -d /tmp/iphone-mirror-bridge.XXXXXX)  # not $TMPDIR: may be private
 trap 'rm -rf "$tmp"' EXIT
 install -m 0644 "$deb" "$tmp/"
 chmod 0755 "$tmp"
-apt-get install -y "$tmp/$(basename "$deb")"
+# --reinstall: a rebuilt package with an unchanged version must still replace the old files.
+apt-get install -y --reinstall "$tmp/$(basename "$deb")"

@@ -5,7 +5,7 @@ See your iPhone's screen on your Linux computer and control it with the touchpad
 - **Screen:** the iPhone's screen appears in a window with a device frame (AirPlay).
 - **Control:** click the screen and the touchpad moves a pointer on the iPhone; the keyboard types on it. The computer acts as a Bluetooth mouse and keyboard for the iPhone. Press **Ctrl+F8** to take the touchpad back.
 
-> Status: beta (0.2.0). Tested on Debian 13 with an ASUS laptop touchpad and an iPhone. Other hardware should work but has not been tested yet; reports are welcome.
+> Status: beta (0.2.1). Tested on Debian 13 with an ASUS laptop touchpad and an iPhone. Other hardware should work but has not been tested yet; reports are welcome.
 
 ## Install
 
