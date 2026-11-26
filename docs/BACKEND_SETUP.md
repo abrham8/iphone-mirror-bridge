@@ -6,7 +6,7 @@ The bridge uses the system BlueZ daemon over system D-Bus, Python evdev for Linu
 
 ```bash
 sudo apt update
-sudo apt install bluez bluetooth python3-dbus python3-gi python3-evdev   python3-pip python3-venv gir1.2-glib-2.0
+sudo apt install bluez bluetooth python3-dbus python3-gi python3-evdev gir1.2-glib-2.0
 ```
 
 Prefer Debian's Python packages for dbus-python, PyGObject, and evdev because they integrate with system libraries. Check the installed versions and service:
@@ -39,9 +39,22 @@ sudo .venv/bin/python scripts/mouse_bridge.py --debug
 
 Reading `/dev/input/event*` usually requires root or membership in the `input` group. Check device permissions with `ls -l /dev/input/event*`. Access to input devices can expose keystrokes, so grant it only to a trusted account. Running with sudo is the simplest first hardware test.
 
+## Pairing
+
+The bridge registers its own BlueZ pairing agent (`NoInputNoOutput`, "Just Works") while it runs. It auto-accepts pairing requests and marks the paired device as trusted so it can reconnect. Without an agent, BlueZ rejects the iPhone's pairing request. Only run the bridge when you are ready to pair: any nearby device could pair with it as a mouse while it is advertising.
+
+If you prefer to use your desktop's Bluetooth agent instead, pass `--no-agent`.
+
+If pairing fails after a previous attempt, remove the device on both sides and retry:
+
+- iPhone: Settings → Bluetooth → (i) next to the bridge → Forget This Device.
+- Linux: `bluetoothctl devices`, then `bluetoothctl remove <iPhone address>`.
+
+The advertised name may be shortened by BlueZ to fit the 31-byte advertisement. After connecting, iOS may show the adapter's Bluetooth name (`bluetoothctl show`, "Alias") instead of "iPhone Mirror Bridge".
+
 ## BlueZ GATT support
 
-The app registers a GATT application and LE peripheral advertisement through BlueZ D-Bus. The adapter must support LE peripheral/advertising operation. Some USB adapters or firmware only support central mode or have unreliable advertising.
+The app registers a GATT application (HID, Battery and Device Information services) and an LE peripheral advertisement through BlueZ D-Bus. The adapter must support LE peripheral/advertising operation. Some USB adapters or firmware only support central mode or have unreliable advertising.
 
 Do not blindly edit `/etc/bluetooth/main.conf`, disable plugins, or enable experimental mode. The correct settings depend on the installed BlueZ version and adapter. This first implementation has not yet been tested on real Debian hardware, so BlueZ version-specific requirements remain open.
 
@@ -67,6 +80,8 @@ Start in laptop-control mode (default). Ctrl+F8 switches to phone mode:
 sudo python3 scripts/mouse_bridge.py --debug
 ```
 
+Use `--adapter hci1` to pick a specific Bluetooth adapter.
+
 Choose devices explicitly:
 
 ```bash
@@ -77,13 +92,22 @@ Use `--start-active` to start in phone mode. Keep a keyboard available: phone mo
 
 ## Known risks and troubleshooting
 
-- The D-Bus GATT object model and advertisement properties need validation against the exact BlueZ release.
+- The D-Bus GATT object model is tested against a fake BlueZ in CI, but still needs validation against the real BlueZ release.
+- If BlueZ reports a duplicate Device Information service (only when `DeviceID` is set in `/etc/bluetooth/main.conf`), use `--no-device-info`.
 - iOS may require pairing, bonding, encryption, or HID descriptor details not yet implemented.
 - The report descriptor is a basic three-button relative mouse with vertical wheel only.
 - If multiple mice are present, automatic discovery chooses the first matching device. Specify `--device` to avoid ambiguity.
 - Do not enable the systemd service until manual startup, pairing, reconnect, and safe shutdown have been tested.
 - If the iPhone cannot discover the device, verify adapter peripheral support, BlueZ advertisement registration, and visibility with a BLE scanner.
 - If pairing works but no pointer appears, inspect HID service discovery, Report Map, Report Reference descriptor, notification subscription, and AssistiveTouch Pointer Devices settings.
+
+## Automated tests
+
+```bash
+/usr/bin/python3 -m unittest discover -s tests -v
+```
+
+The tests cover HID report encoding, mode switching, the D-Bus GATT objects (using a private `dbus-daemon` and a fake BlueZ), and an end-to-end run of the bridge with a simulated mouse. They need `python3-dbus`, `python3-gi`, `python3-evdev` and `dbus`; tests are skipped if those are missing. They do **not** replace testing with a real adapter and iPhone.
 
 ## UxPlay AirPlay receiver
 

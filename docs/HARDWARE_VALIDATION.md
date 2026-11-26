@@ -4,6 +4,8 @@ This checklist is required before calling the bridge functional or enabling its 
 
 ## Host details to record
 
+`sudo scripts/check_host.sh` collects all of the following (read-only):
+
 - Debian release: `cat /etc/debian_version`
 - Kernel: `uname -a`
 - BlueZ: `bluetoothd -v`
@@ -17,11 +19,11 @@ This checklist is required before calling the bridge functional or enabling its 
 From the repository root:
 
 ```bash
-python3 -m unittest discover -s tests -v
-python3 -m py_compile scripts/*.py
+/usr/bin/python3 -m unittest discover -s tests -v
+/usr/bin/python3 -m py_compile scripts/*.py
 ```
 
-Expected: all HID report tests pass and all Python files compile.
+Expected: all tests pass with **none skipped**, and all Python files compile.
 
 ## Test B: input device detection
 
@@ -36,10 +38,11 @@ Expected: the selected mouse and keyboard are detected. The program should repor
 
 1. In a second terminal, run `sudo journalctl -fu bluetooth`.
 2. Start the bridge with `--debug`.
-3. Confirm the log reports GATT registration and advertisement activation.
+3. Confirm the log shows, in order: `Pairing agent registered`, `BlueZ GATT HID service registered`, `BLE HID advertisement active`.
 4. On the iPhone, enable AssistiveTouch and open Bluetooth Devices.
 5. Pair with the advertised bridge name.
-6. Record whether pairing succeeds, whether the device bonds, and any BlueZ or iOS error messages.
+6. Expected bridge log: `Accepting pairing/authorization`, `Marked ... as trusted`, then `Host subscribed to notifications on 2a4d`. The last line means iOS is ready to receive mouse reports.
+7. Record whether pairing succeeds, whether the device bonds (`bluetoothctl info <iPhone address>` shows `Paired: yes`, `Bonded: yes`), and any BlueZ or iOS error messages.
 
 If the advertisement is not visible, record adapter model/firmware and BlueZ version before changing BlueZ configuration.
 
@@ -47,8 +50,8 @@ If the advertisement is not visible, record adapter model/firmware and BlueZ ver
 
 1. Start in laptop mode (default) and confirm the local desktop mouse still works.
 2. Press Ctrl+F8. Confirm the local mouse is grabbed and the iPhone pointer responds.
-3. Test X/Y motion, left/right/middle click, and vertical wheel.
-4. Press Ctrl+F8 again. Confirm the local desktop mouse works and the iPhone receives a button-release report.
+3. Test X/Y motion (slow and fast flicks), left/right/middle click, quick double-click, drag, and vertical wheel.
+4. Hold the left button, press Ctrl+F8, then release. Confirm the iPhone does not stay in a pressed/dragging state and the local desktop mouse works.
 5. Stop with Ctrl+C. Confirm the local mouse is released.
 6. Reboot and test reconnection only after the manual test is stable.
 

@@ -4,13 +4,14 @@ A Debian-first experiment for viewing and controlling a nearby iPhone from Linux
 
 ## Status
 
-Early hardware-integration project. The first mouse bridge implementation is present, but has **not** been validated against a physical BLE adapter or iPhone. Treat it as experimental, not as a working release.
+Early hardware-integration project. The mouse bridge is implemented and covered by automated tests (including an end-to-end run against a fake BlueZ), but has **not** been validated against a physical BLE adapter or iPhone. Treat it as experimental, not as a working release.
 
 | Component | Status |
 |---|---|
 | evdev mouse discovery and event parsing | Implemented; hardware testing needed |
 | HID mouse report descriptor and encoding | Implemented; descriptor validation needed |
-| BlueZ GATT HID service and advertisement | Initial implementation; BlueZ/iOS testing needed |
+| BlueZ GATT HID service and advertisement | Implemented; tested against fake BlueZ; real BlueZ/iOS testing needed |
+| Pairing agent (Just Works, auto-trust) | Implemented; iOS testing needed |
 | Ctrl+F8 mode toggle and evdev grab | Implemented; desktop testing needed |
 | UxPlay user service | Implemented; display/network testing needed |
 | AppImage | Not implemented |
@@ -22,6 +23,8 @@ See [Backend setup](docs/BACKEND_SETUP.md). Install Debian's BlueZ, D-Bus, GI, a
 ```bash
 sudo python3 scripts/mouse_bridge.py --debug
 ```
+
+To help with hardware testing, run `sudo scripts/check_host.sh` and follow [Hardware validation](docs/HARDWARE_VALIDATION.md).
 
 Enable **Settings → Accessibility → Touch → AssistiveTouch** on the iPhone, then pair with **iPhone Mirror Bridge**. Ctrl+F8 switches between laptop and phone control. The default mode is laptop control; use `--start-active` to start in phone mode. Use `--device /dev/input/eventN` and `--hotkey-device /dev/input/eventM` to select devices explicitly.
 
@@ -40,7 +43,11 @@ Install and run UxPlay separately using the user service in `systemd/uxplay.serv
 
 ## Project layout
 
-- `scripts/mouse_bridge.py`: BLE HID peripheral and evdev input bridge.
+- `scripts/mouse_bridge.py`: entry point; evdev input, Ctrl+F8 mode switching.
+- `scripts/ble_hid.py`: BlueZ GATT HID service, advertisement and pairing agent.
+- `scripts/hid_report.py`: HID report encoding and buffering (no dependencies).
+- `scripts/check_host.sh`: collects host details for hardware testing.
+- `tests/`: unit, D-Bus and end-to-end tests (`/usr/bin/python3 -m unittest discover -s tests -v`).
 - `systemd/`: draft service units.
 - `docs/`: Debian, iPhone, and optional remote-access setup.
 
