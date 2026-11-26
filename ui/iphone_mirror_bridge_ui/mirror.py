@@ -126,6 +126,10 @@ class MirrorController(QObject):
     firewallChanged = Signal()
     message = Signal(str, str)   # title, body (for notifications)
     frameReady = Signal(QImage)
+    startingChanged = Signal()
+    # Emitted from worker threads; Qt queues them to the main thread.
+    _startFinished = Signal(bool, str)
+    _firewallFinished = Signal(bool)
 
     def __init__(self, prefs, socket_path: str | None = None, parent=None):
         super().__init__(parent)
@@ -136,6 +140,9 @@ class MirrorController(QObject):
         self._last_frame = 0.0
         self._size = (0, 0)
         self._firewall_blocked = False
+        self._starting = False
+        self._startFinished.connect(self._started)
+        self._firewallFinished.connect(self._set_firewall)
         self.source = FrameSource(self.socket_path, self)
         self.source.frame.connect(self._on_frame)
         self._watch = QTimer(self, interval=500, timeout=self._check_streaming)
@@ -149,6 +156,7 @@ class MirrorController(QObject):
     videoHeight = Property(int, lambda s: s._size[1], notify=sizeChanged)
     landscape = Property(bool, lambda s: s._size[0] > s._size[1] > 0, notify=sizeChanged)
     firewallBlocked = Property(bool, lambda s: s._firewall_blocked, notify=firewallChanged)
+    starting = Property(bool, lambda s: s._starting, notify=startingChanged)
 
     def _script(self, *args, embed: bool = False):
         env = dict(os.environ, IPHONE_MIRROR_QUIET="1", IPHONE_MIRROR_FPS=str(self.prefs.fps))
@@ -160,20 +168,30 @@ class MirrorController(QObject):
     # -- actions ----------------------------------------------------------------
     @Slot()
     def start(self):
-        if self._running:
+        if self._running or self._starting:
             return
+        self._starting = True
+        self.startingChanged.emit()
+
         def work():
             self._script("--stop")          # replace a receiver started outside the app
             try:
                 os.unlink(self.socket_path)
             except OSError:
                 pass
-            result = self._script("--start", embed=True)
-            ok = result.returncode == 0
-            QTimer.singleShot(0, lambda: self._started(ok, result.stdout.strip().splitlines()))
+            try:
+                result = self._script("--start", embed=True)
+                ok, output = result.returncode == 0, result.stdout.strip()
+            except (OSError, subprocess.SubprocessError) as exc:
+                ok, output = False, str(exc)
+            # Never touch Qt timers/objects from this thread: signal the main thread.
+            self._startFinished.emit(ok, output)
         threading.Thread(target=work, daemon=True).start()
 
     def _started(self, ok, output):
+        self._starting = False
+        self.startingChanged.emit()
+        output = output.splitlines()
         if ok:
             self._running = True
             self.source.start()
@@ -208,7 +226,7 @@ class MirrorController(QObject):
                 blocked = self._script("--firewall-status").returncode == 1
             except (OSError, subprocess.SubprocessError):
                 blocked = False
-            QTimer.singleShot(0, lambda: self._set_firewall(blocked))
+            self._firewallFinished.emit(blocked)
         threading.Thread(target=work, daemon=True).start()
 
     def _set_firewall(self, blocked):

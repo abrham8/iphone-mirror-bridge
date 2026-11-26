@@ -77,6 +77,8 @@ class FakeMirror(QObject):
     videoHeight = Property(int, lambda s: 1280, notify=sizeChanged)
     landscape = Property(bool, lambda s: False, notify=sizeChanged)
     firewallBlocked = Property(bool, lambda s: False, notify=firewallChanged)
+    startingChanged = Signal()
+    starting = Property(bool, lambda s: False, notify=startingChanged)
 
     def __init__(self):
         super().__init__()

@@ -176,6 +176,44 @@ class QmlLoadTests(unittest.TestCase):
         del engine
 
 
+@unittest.skipUnless(HAVE_UI and shutil.which("pgrep"), "PySide6 and procps are required")
+class MirrorControllerTests(unittest.TestCase):
+    """The Start button path: run the screen script (with a fake uxplay) and
+    make sure the app notices the receiver is running."""
+
+    def setUp(self):
+        qt_app()
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        bin_dir = Path(self.tmp, "bin")
+        bin_dir.mkdir()
+        fake = bin_dir / "uxplay"
+        fake.write_text('#!/bin/sh\necho "fake uxplay $*"\nwhile true; do sleep 1; done\n')
+        fake.chmod(0o755)
+        self.saved_env = dict(os.environ)
+        self.addCleanup(lambda: (os.environ.clear(), os.environ.update(self.saved_env)))
+        os.environ.update(PATH=f"{bin_dir}:{os.environ['PATH']}", HOME=self.tmp,
+                          XDG_CACHE_HOME=str(Path(self.tmp, "cache")))
+
+    def test_start_reports_running_and_stop(self):
+        from iphone_mirror_bridge_ui.mirror import MirrorController
+        from iphone_mirror_bridge_ui.prefs import Prefs
+        mirror = MirrorController(Prefs(Path(self.tmp, "ui.json")), socket_path=str(Path(self.tmp, "v.sock")))
+        messages = []
+        mirror.message.connect(lambda title, body: messages.append(title))
+        mirror.start()
+        self.assertTrue(mirror.starting)
+        mirror.start()  # a second click while starting does nothing
+        spin(lambda: mirror.running, timeout=15)
+        self.assertFalse(mirror.starting)
+        self.assertIn("Ready for screen mirroring", messages)
+        log = Path(self.tmp, "cache/iphone-mirror-bridge/uxplay.log").read_text()
+        self.assertIn(f"unixfdsink socket-path={self.tmp}/v.sock", log)
+        mirror.stop()
+        self.assertFalse(mirror.running)
+        spin(lambda: subprocess.run(["pgrep", "-x", "uxplay"], capture_output=True).returncode != 0, timeout=10)
+
+
 @unittest.skipUnless(HAVE_UI and shutil.which("gst-launch-1.0"), "GStreamer tools are required")
 class FrameSourceTests(unittest.TestCase):
     def test_frames_arrive_from_unixfdsink(self):

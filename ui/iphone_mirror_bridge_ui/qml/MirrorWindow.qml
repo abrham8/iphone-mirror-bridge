@@ -189,12 +189,13 @@ Window {
                         eyebrow: receiver.streaming ? "CONNECTED TO LINUX"
                                  : receiver.running ? "READY" : "SCREEN MIRRORING IS OFF"
                         heading: receiver.streaming ? "Mirroring is live"
-                                 : receiver.running ? "Waiting for your iPhone" : "Start screen mirroring"
+                                 : receiver.running ? "Waiting for your iPhone"
+                                 : receiver.starting ? "Starting…" : "Start screen mirroring"
                         detail: receiver.streaming ? prefs.fps + " fps · Wi‑Fi"
                                 : receiver.running ? (receiver.firewallBlocked
                                                     ? "The firewall is blocking the iPhone. Click to allow it."
                                                     : "On the iPhone: Control Center › Screen Mirroring › iPhone Mirror Bridge")
-                                : "Click to start the receiver"
+                                : receiver.starting ? "Starting the AirPlay receiver" : "Click to start the receiver"
                         onClicked: {
                             if (!receiver.running) receiver.start()
                             else if (receiver.firewallBlocked) receiver.allowFirewall()
