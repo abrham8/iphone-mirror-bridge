@@ -2,7 +2,7 @@ Package: iphone-mirror-bridge
 Version: @VERSION@
 Architecture: all
 Maintainer: abrham8 <abrham8@users.noreply.github.com>
-Depends: python3 (>= 3.9), python3-dbus, python3-gi, gir1.2-glib-2.0, python3-evdev, bluez, uxplay
+Depends: python3 (>= 3.9), python3-dbus, python3-gi, gir1.2-glib-2.0, python3-evdev, bluez, uxplay, avahi-daemon, gstreamer1.0-plugins-base, gstreamer1.0-plugins-good, gstreamer1.0-plugins-bad, gstreamer1.0-libav, gstreamer1.0-gl
 Recommends: libnotify-bin
 Section: utils
 Priority: optional

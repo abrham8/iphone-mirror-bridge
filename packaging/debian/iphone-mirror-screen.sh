@@ -32,7 +32,8 @@ start() {
     if running; then
         notify "Ready for screen mirroring" "On the iPhone: Control Center > Screen Mirroring > $NAME"
     else
-        notify "Could not start screen mirroring" "See $LOG"
+        reason=$(grep -m1 -E "not found|ERROR|[Ff]ailed" "$LOG" 2>/dev/null)
+        notify "Could not start screen mirroring" "${reason:-See $LOG} (details: $LOG)"
         return 1
     fi
 }
