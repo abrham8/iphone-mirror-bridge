@@ -1,0 +1,40 @@
+name: Release
+
+# Push a tag like v0.1.0 to publish a GitHub Release with the .deb attached.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    container: debian:trixie
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build package
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git ca-certificates
+          scripts/build_deb.sh
+          version=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' scripts/mouse_bridge.py)
+          test "v$version" = "$GITHUB_REF_NAME" || { echo "Tag $GITHUB_REF_NAME does not match version $version"; exit 1; }
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.deb
+          prerelease: true
+          body: |
+            ## Install (Debian 13 / Ubuntu 24.04 or newer)
+
+            1. Download `iphone-mirror-bridge_*_all.deb` below.
+            2. Install it:
+               ```bash
+               sudo apt install ./iphone-mirror-bridge_*_all.deb
+               ```
+            3. On the iPhone: turn on **Settings → Accessibility → Touch → AssistiveTouch**,
+               then pair with **iPhone Mirror Bridge** in **Settings → Bluetooth**.
+            4. Press **Ctrl+F8** to control the iPhone; press it again to switch back.
+
+            Remove with `sudo apt remove iphone-mirror-bridge`.

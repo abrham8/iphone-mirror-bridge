@@ -1,6 +1,6 @@
 # Hardware validation checklist
 
-This checklist is required before calling the bridge functional or enabling its systemd service. The project has not yet been tested on a real Debian host, Bluetooth adapter, or iPhone.
+Use this checklist when testing on new hardware. First results (Debian 13.8, BlueZ 5.82, Intel adapter, ASUS touchpad, iPhone) are recorded in the README. When running from source, stop the installed service first: `sudo systemctl stop iphone-mirror-bridge`.
 
 ## Host details to record
 

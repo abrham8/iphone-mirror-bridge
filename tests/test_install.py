@@ -1,37 +1,47 @@
-"""Dry-run the installer into a temporary root (no systemctl, no root needed)."""
-import os
+"""Build the .deb and check its contents (needs dpkg-deb; no root)."""
+import shutil
 import subprocess
-import tempfile
 import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 
 
-class InstallScriptTests(unittest.TestCase):
-    def run_install(self, root, *args):
-        env = dict(os.environ, ROOT=root, SKIP_SYSTEMCTL="1")
-        return subprocess.run(["bash", str(REPO / "scripts/install.sh"), *args], env=env,
-                              capture_output=True, text=True, check=True)
+@unittest.skipUnless(shutil.which("dpkg-deb"), "dpkg-deb is required")
+class DebPackageTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        out = subprocess.run(["bash", str(REPO / "scripts/build_deb.sh")], cwd=REPO,
+                             capture_output=True, text=True, check=True)
+        cls.deb = REPO / out.stdout.strip().splitlines()[-1]
 
-    def test_install_and_uninstall(self):
-        with tempfile.TemporaryDirectory() as root:
-            self.run_install(root)
-            config = Path(root, "etc/default/iphone-mirror-bridge").read_text()
-            self.assertIn('BRIDGE_ARGS="--touchpad"', config)
-            for name in ("mouse_bridge.py", "ble_hid.py", "hid_report.py"):
-                self.assertTrue(Path(root, "opt/iphone-mirror-bridge/scripts", name).is_file(), name)
-            unit = Path(root, "etc/systemd/system/mouse-bridge.service").read_text()
-            self.assertIn("ExecStart=/usr/bin/python3 /opt/iphone-mirror-bridge/scripts/mouse_bridge.py $BRIDGE_ARGS",
-                          unit)
-            self.assertIn("RuntimeDirectory=iphone-mirror-bridge", unit)  # lock file location
+    def dpkg(self, *args):
+        return subprocess.run(["dpkg-deb", *args, str(self.deb)], capture_output=True,
+                              text=True, check=True).stdout
 
-            self.run_install(root, "--device", "/dev/input/event3")
-            self.assertIn('BRIDGE_ARGS="--device /dev/input/event3"',
-                          Path(root, "etc/default/iphone-mirror-bridge").read_text())
+    def test_control_fields(self):
+        control = self.dpkg("-f")
+        self.assertIn("Package: iphone-mirror-bridge", control)
+        for dep in ("python3-dbus", "python3-gi", "python3-evdev", "bluez"):
+            self.assertIn(dep, control)
+        self.assertIn("Architecture: all", control)
 
-            self.run_install(root, "--uninstall")
-            self.assertEqual([p for p in Path(root).rglob("*") if p.is_file()], [])
+    def test_files(self):
+        listing = self.dpkg("-c")
+        for path in ("./usr/bin/iphone-mirror-bridge",
+                     "./usr/lib/iphone-mirror-bridge/mouse_bridge.py",
+                     "./usr/lib/iphone-mirror-bridge/ble_hid.py",
+                     "./usr/lib/iphone-mirror-bridge/hid_report.py",
+                     "./usr/lib/systemd/system/iphone-mirror-bridge.service",
+                     "./etc/iphone-mirror-bridge/bridge.conf",
+                     "./usr/share/man/man1/iphone-mirror-bridge.1.gz",
+                     "./usr/share/doc/iphone-mirror-bridge/copyright"):
+            self.assertIn(path, listing)
+
+    def test_service_runs_installed_command(self):
+        unit = (REPO / "packaging/debian/iphone-mirror-bridge.service").read_text()
+        self.assertIn("ExecStart=/usr/bin/iphone-mirror-bridge $BRIDGE_ARGS", unit)
+        self.assertIn("RuntimeDirectory=iphone-mirror-bridge", unit)  # lock file location
 
 
 if __name__ == "__main__":

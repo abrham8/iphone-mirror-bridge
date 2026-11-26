@@ -22,6 +22,7 @@ from gi.repository import GLib
 from ble_hid import BleHid, adapter_provides_device_info, find_adapter, set_le_connection_interval
 from hid_report import HotkeyDetector, ReportAccumulator, TouchpadTranslator
 
+__version__ = "0.1.0"
 LOG = logging.getLogger("mouse-bridge")
 DEFAULT_REPORT_INTERVAL_MS = 15
 # Preferred LE connection interval in 1.25 ms units: 15-30 ms (Apple HID guidelines).
@@ -119,6 +120,18 @@ def find_mouse_device(path: str | None = None, touchpad: bool = False) -> InputD
         extra.close()
     LOG.info("Using %s: %s (%s)", kind, selected.path, selected.name)
     return selected
+
+
+def find_default_device() -> InputDevice:
+    """Laptops: use the built-in touchpad. Otherwise: use the first mouse."""
+    try:
+        pad = find_mouse_device(touchpad=True)
+        if touchpad_score(pad) >= 2:  # a real built-in touchpad, not a USB receiver
+            return pad
+        pad.close()
+    except RuntimeError:
+        pass
+    return find_mouse_device()
 
 
 def make_touchpad_translator(device: InputDevice, reports: ReportAccumulator, args) -> TouchpadTranslator:
@@ -324,10 +337,14 @@ def acquire_instance_lock(path: str):
 
 # -- main --------------------------------------------------------------------
 def parse_args(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--device", help="Mouse or touchpad /dev/input/eventN (auto-detected if omitted)")
-    parser.add_argument("--touchpad", action="store_true",
-                        help="Auto-select the built-in touchpad instead of a mouse")
+    parser = argparse.ArgumentParser(prog="iphone-mirror-bridge", description=__doc__)
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    parser.add_argument("--device", help="Mouse or touchpad /dev/input/eventN (default: built-in "
+                                         "touchpad if present, otherwise the first mouse)")
+    pick = parser.add_mutually_exclusive_group()
+    pick.add_argument("--touchpad", action="store_true",
+                      help="Use the built-in touchpad (default on laptops)")
+    pick.add_argument("--mouse", action="store_true", help="Use a mouse even if a touchpad exists")
     parser.add_argument("--touchpad-speed", type=float, default=20.0,
                         help="Touchpad pointer speed in counts per mm (default 20)")
     parser.add_argument("--scroll-speed", type=float, default=1.0,
@@ -383,7 +400,10 @@ def main(argv=None) -> int:
         bus = dbus.SystemBus()
         adapter = find_adapter(bus, args.adapter)
         LOG.info("Using Bluetooth adapter %s", adapter)
-        mouse = find_mouse_device(args.device, touchpad=args.touchpad)
+        if args.device or args.touchpad or args.mouse:
+            mouse = find_mouse_device(args.device, touchpad=args.touchpad)
+        else:
+            mouse = find_default_device()
         keyboards = find_keyboards(args.hotkey_device, exclude=[mouse.path], hotkey=hotkey)
     except (RuntimeError, OSError, dbus.DBusException) as exc:
         LOG.error("%s", exc)

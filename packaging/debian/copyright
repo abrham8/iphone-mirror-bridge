@@ -1,0 +1,8 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: iphone-mirror-bridge
+Source: https://github.com/abrham8/iphone-mirror-bridge
+
+Files: *
+Copyright: 2026 abrham8
+License: TBD
+ A license has not been chosen yet. See the project repository.

@@ -1,0 +1,39 @@
+.TH IPHONE-MIRROR-BRIDGE 1 "2026" "iphone-mirror-bridge" "User Commands"
+.SH NAME
+iphone-mirror-bridge \- control an iPhone with a Linux touchpad or mouse over Bluetooth
+.SH SYNOPSIS
+.B iphone-mirror-bridge
+[\fIOPTIONS\fR]
+.SH DESCRIPTION
+Makes the computer act as a Bluetooth LE mouse for an iPhone. With
+AssistiveTouch enabled on the iPhone, the built-in touchpad (or a mouse)
+moves the iPhone pointer. Ctrl+F8 switches between the computer and the iPhone.
+.PP
+Normally this runs as the \fBiphone-mirror-bridge\fR systemd service, configured
+in \fI/etc/iphone-mirror-bridge/bridge.conf\fR. Stop the service before running
+the command by hand. It must run as root.
+.SH TOUCHPAD GESTURES
+One finger moves; tap or press clicks; two-finger tap or press right-clicks;
+two fingers scroll; three fingers hold (long-press) and drag.
+.SH OPTIONS
+Run \fBiphone-mirror-bridge \-\-help\fR for the full list. Common options:
+.TP
+.B \-\-mouse
+Use a mouse even when a touchpad exists.
+.TP
+.BI \-\-device " /dev/input/eventN"
+Use a specific input device.
+.TP
+.BI \-\-touchpad\-speed " N"
+Touchpad pointer speed (default 20).
+.TP
+.BI \-\-hotkey " KEY"
+Key used with Ctrl to switch modes (default F8).
+.TP
+.B \-\-debug
+Verbose logging.
+.SH FILES
+.I /etc/iphone-mirror-bridge/bridge.conf
+.SH SEE ALSO
+.BR systemctl (1),
+.BR bluetoothctl (1)

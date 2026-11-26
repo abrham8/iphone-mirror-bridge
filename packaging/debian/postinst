@@ -1,0 +1,44 @@
+#!/bin/sh
+set -e
+
+if [ "$1" = "configure" ]; then
+    # Clean up an older from-source install (scripts/install.sh before 0.1.0).
+    if [ -f /etc/systemd/system/mouse-bridge.service ]; then
+        if [ -d /run/systemd/system ]; then
+            deb-systemd-invoke stop mouse-bridge.service >/dev/null 2>&1 || true
+        fi
+        rm -f /etc/systemd/system/mouse-bridge.service \
+              /etc/systemd/system/multi-user.target.wants/mouse-bridge.service
+        rm -rf /opt/iphone-mirror-bridge
+        if grep -q "Options for mouse_bridge.py" /etc/default/iphone-mirror-bridge 2>/dev/null; then
+            rm -f /etc/default/iphone-mirror-bridge
+        fi
+    fi
+
+    if [ -d /run/systemd/system ]; then
+        systemctl --system daemon-reload >/dev/null || true
+    fi
+    deb-systemd-helper unmask iphone-mirror-bridge.service >/dev/null || true
+    deb-systemd-helper enable iphone-mirror-bridge.service >/dev/null || true
+    if [ -d /run/systemd/system ]; then
+        deb-systemd-invoke restart iphone-mirror-bridge.service >/dev/null || true
+    fi
+
+    if [ -z "$2" ]; then
+        cat <<'MSG'
+
+iPhone Mirror Bridge is installed and running.
+
+On your iPhone:
+  1. Settings > Accessibility > Touch > AssistiveTouch: turn it on.
+  2. Settings > Bluetooth: tap "iPhone Mirror Bridge" to pair.
+Then press Ctrl+F8 on this computer to control the iPhone (again to switch back).
+
+Status: systemctl status iphone-mirror-bridge
+Settings: /etc/iphone-mirror-bridge/bridge.conf
+
+MSG
+    fi
+fi
+
+exit 0

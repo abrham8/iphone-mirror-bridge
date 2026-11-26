@@ -1,0 +1,13 @@
+#!/bin/sh
+set -e
+if [ "$1" = "remove" ] && command -v deb-systemd-helper >/dev/null; then
+    deb-systemd-helper mask iphone-mirror-bridge.service >/dev/null || true
+fi
+if [ "$1" = "purge" ] && command -v deb-systemd-helper >/dev/null; then
+    deb-systemd-helper purge iphone-mirror-bridge.service >/dev/null || true
+    deb-systemd-helper unmask iphone-mirror-bridge.service >/dev/null || true
+fi
+if [ -d /run/systemd/system ]; then
+    systemctl --system daemon-reload >/dev/null || true
+fi
+exit 0

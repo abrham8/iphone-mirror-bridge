@@ -1,5 +1,7 @@
 # Debian backend setup
 
+> End users: install the .deb as described in the [README](../README.md). This page is for running from source and troubleshooting.
+
 The bridge uses the system BlueZ daemon over system D-Bus, Python evdev for Linux input events, and GLib for the D-Bus event loop.
 
 ## Install packages
@@ -119,7 +121,6 @@ Values are in 1.25 ms units. `--report-interval 15` controls how often the bridg
 - iOS may require pairing, bonding, encryption, or HID descriptor details not yet implemented.
 - The report descriptor is a basic three-button relative mouse with vertical wheel only.
 - If multiple mice are present, automatic discovery chooses the first matching device. Specify `--device` to avoid ambiguity.
-- Do not enable the systemd service until manual startup, pairing, reconnect, and safe shutdown have been tested.
 - If the iPhone cannot discover the device, verify adapter peripheral support, BlueZ advertisement registration, and visibility with a BLE scanner.
 - If pairing works but no pointer appears, inspect HID service discovery, Report Map, Report Reference descriptor, notification subscription, and AssistiveTouch Pointer Devices settings.
 

@@ -1,0 +1,16 @@
+Package: iphone-mirror-bridge
+Version: @VERSION@
+Architecture: all
+Maintainer: abrham8 <abrham8@users.noreply.github.com>
+Depends: python3 (>= 3.9), python3-dbus, python3-gi, gir1.2-glib-2.0, python3-evdev, bluez
+Recommends: uxplay
+Section: utils
+Priority: optional
+Homepage: https://github.com/abrham8/iphone-mirror-bridge
+Description: control an iPhone with your Linux touchpad or mouse
+ iPhone Mirror Bridge makes a Linux computer act as a Bluetooth mouse for
+ an iPhone. With AssistiveTouch enabled on the iPhone, the laptop touchpad
+ (or a mouse) moves the iPhone pointer, clicks, scrolls and drags.
+ Ctrl+F8 switches the touchpad between the computer and the iPhone.
+ .
+ Screen mirroring is handled separately by UxPlay (AirPlay receiver).
