@@ -45,7 +45,7 @@ The bridge registers its own BlueZ pairing agent (`NoInputNoOutput`, "Just Works
 
 If you prefer to use your desktop's Bluetooth agent instead, pass `--no-agent`.
 
-If pairing fails after a previous attempt, remove the device on both sides and retry:
+If pairing fails, or the iPhone connects but the pointer does not move (seen after restarting bluetooth or changing `main.conf`), remove the device on both sides and pair again:
 
 - iPhone: Settings → Bluetooth → (i) next to the bridge → Forget This Device.
 - Linux: `bluetoothctl devices`, then `bluetoothctl remove <iPhone address>`.

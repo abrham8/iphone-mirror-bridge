@@ -4,12 +4,12 @@ A Debian-first experiment for viewing and controlling a nearby iPhone from Linux
 
 ## Status
 
-Early hardware-integration project, now partly hardware-verified. First real test (Debian 13.8, kernel 7.3, BlueZ 5.82, Intel adapter, ASUS laptop touchpad, iPhone with AssistiveTouch): advertising, pairing, pointer movement, clicking and Ctrl+F8 mode switching work. Scrolling, right-click, reconnect after reboot, and external-mouse mode still need testing. Treat it as experimental, not as a release.
+Early hardware-integration project, now partly hardware-verified. First real test (Debian 13.8, kernel 7.3, BlueZ 5.82, Intel adapter, ASUS laptop touchpad, iPhone with AssistiveTouch): advertising, pairing, pointer movement, clicking, three-finger drag and Ctrl+F8 mode switching work. Scrolling, right-click, reconnect after reboot, and external-mouse mode still need testing. Treat it as experimental, not as a release.
 
 | Component | Status |
 |---|---|
 | evdev mouse discovery and event parsing | Implemented; hardware testing needed |
-| Laptop touchpad (move, tap, click, two-finger scroll, three-finger drag) | Movement and clicks verified on hardware; scroll tuning in progress |
+| Laptop touchpad (move, tap, click, two-finger scroll, three-finger drag) | Movement, clicks and three-finger drag verified on hardware |
 | HID mouse report descriptor and encoding | Implemented; descriptor validation needed |
 | BlueZ GATT HID service and advertisement | Verified with BlueZ 5.82 and iOS |
 | Pairing agent (Just Works, auto-trust) | Verified with iOS |
