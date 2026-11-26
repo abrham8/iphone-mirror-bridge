@@ -393,6 +393,7 @@ def keyboard_hotkey(devices: Iterable[InputDevice], active: threading.Event, sto
 def capture_mouse(device: InputDevice, ble: BleHid, active: threading.Event, stop: threading.Event):
     state = MouseState()
     last_sent = time.monotonic()
+    was_active = active.is_set()
     try:
         for event in device.read_loop():
             if stop.is_set():
@@ -408,7 +409,12 @@ def capture_mouse(device: InputDevice, ble: BleHid, active: threading.Event, sto
                     if event.value: state.buttons |= 1 << mask
                     else: state.buttons &= ~(1 << mask)
             now = time.monotonic()
-            if not active.is_set():
+            is_active = active.is_set()
+            if was_active and not is_active:
+                ble.publish(build_hid_report(0))
+                state.buttons = 0
+            was_active = is_active
+            if not is_active:
                 state.dx = state.dy = state.wheel = 0
                 continue
             if state.dx or state.dy or state.wheel or now - last_sent > 0.03:
