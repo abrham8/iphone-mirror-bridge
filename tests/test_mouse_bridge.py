@@ -158,6 +158,20 @@ class BridgeControllerTests(unittest.TestCase):
             with self.assertLogs("mouse-bridge.ble", "INFO"):
                 self.assertIsNone(ble_hid.set_le_connection_interval("hci9", 12, 24, base=base))
 
+    def test_hotkey_refuses_phone_mode_until_connected(self):
+        connected = {"v": False}
+        ctl = mouse_bridge.BridgeController(self.mouse, phone_connected=lambda: connected["v"])
+        with self.assertLogs("mouse-bridge", "WARNING"):
+            ctl.toggle()
+        self.assertFalse(ctl.active)
+        self.assertFalse(self.mouse.grabbed)
+        connected["v"] = True
+        ctl.toggle()
+        self.assertTrue(ctl.active and self.mouse.grabbed)
+        connected["v"] = False
+        ctl.toggle()  # leaving phone mode is always allowed
+        self.assertFalse(ctl.active or self.mouse.grabbed)
+
     def test_argument_parsing(self):
         args = mouse_bridge.parse_args(["--adapter", "hci1", "--no-agent", "--start-active"])
         self.assertEqual(args.adapter, "hci1")

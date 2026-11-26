@@ -26,7 +26,8 @@ class SimulatedMouse:
 
     def read_loop(self):
         # Hold the left button and move right in big steps (forces report splitting).
-        time.sleep(0.3)  # let --start-active take effect first
+        while not self.grabbed:  # phone mode starts once the fake iPhone subscribes
+            time.sleep(0.02)
         yield Event(ecodes.EV_KEY, ecodes.BTN_LEFT, 1)
         while True:
             time.sleep(0.05)

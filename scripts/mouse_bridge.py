@@ -163,8 +163,10 @@ class BridgeController:
     """Owns the phone/laptop mode, the evdev grab and the pending HID reports."""
 
     def __init__(self, mouse: InputDevice, grab: bool = True, reports: ReportAccumulator | None = None,
-                 touchpad: TouchpadTranslator | None = None):
+                 touchpad: TouchpadTranslator | None = None, phone_connected=lambda: True):
         self.mouse = mouse
+        # Only take the device away from the desktop while the phone can use it.
+        self.phone_connected = phone_connected
         self.grab_enabled = grab
         self.reports = reports or ReportAccumulator()
         self.touchpad = touchpad
@@ -178,6 +180,10 @@ class BridgeController:
 
     def toggle(self) -> None:
         with self._lock:
+            if not self._active and not self.phone_connected():
+                LOG.warning("iPhone is not connected yet; staying in laptop mode. Connect it in "
+                            "iPhone Settings > Bluetooth, then press the hotkey again.")
+                return
             self._set_active_locked(not self._active)
 
     def set_active(self, active: bool) -> None:
@@ -365,7 +371,9 @@ def main(argv=None) -> int:
     touchpad = make_touchpad_translator(mouse, reports, args) if device_is_touchpad(mouse) else None
     if touchpad:
         LOG.info("Touchpad mode: one finger moves, tap/press clicks, two fingers scroll or right-click")
-    controller = BridgeController(mouse, grab=not args.no_grab, reports=reports, touchpad=touchpad)
+    ble_ref = {}
+    controller = BridgeController(mouse, grab=not args.no_grab, reports=reports, touchpad=touchpad,
+                                  phone_connected=lambda: "ble" in ble_ref and ble_ref["ble"].subscribed)
     hci = adapter.rsplit("/", 1)[-1]
     old_interval = None
     if not args.keep_conn_interval:
@@ -378,6 +386,7 @@ def main(argv=None) -> int:
 
     ble = BleHid(bus, adapter, args.name, use_agent=not args.no_agent,
                  include_device_info=include_device_info)
+    ble_ref["ble"] = ble
     stop = threading.Event()
     loop = GLib.MainLoop()
     exit_code = 0
@@ -417,10 +426,19 @@ def main(argv=None) -> int:
         loop.quit()
         return False
 
+    pending_start = {"active": args.start_active}
+
     def monitor_ble() -> bool:
         if ble.failed is not None:
             shutdown(1)
             return False
+        if ble.subscribed and pending_start["active"]:
+            pending_start["active"] = False
+            controller.set_active(True)
+        elif controller.active and not ble.subscribed:
+            LOG.warning("iPhone disconnected; returning the %s to the laptop",
+                        "touchpad" if touchpad else "mouse")
+            controller.set_active(False)
         return not stop.is_set()
 
     try:
@@ -440,7 +458,7 @@ def main(argv=None) -> int:
     threading.Thread(target=capture_mouse, name="mouse", daemon=True,
                      args=(controller, stop, lambda: GLib.idle_add(shutdown, 1))).start()
     if args.start_active:
-        controller.set_active(True)
+        LOG.info("Waiting for the iPhone to connect; control switches to it automatically.")
     else:
         LOG.info("Laptop control mode. Press %s to control the iPhone.", hotkey_label)
 
