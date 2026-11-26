@@ -190,7 +190,8 @@ class HidCharacteristic(DBusObject):
         props = {"UUID": dbus.String(self.uuid),
                  "Service": dbus.ObjectPath(HidService.path),
                  "Flags": dbus.Array(self.flags, signature="s"),
-                 "Descriptors": dbus.Array([dbus.ObjectPath(self.descriptor.path)] if self.descriptor else [], signature="o")}
+                 "Descriptors": dbus.Array([dbus.ObjectPath(self.descriptor.path)] if self.descriptor else [], signature="o"),
+                 "Value": dbus.Array([dbus.Byte(b) for b in self.value], signature="y")}
         return {GATT_CHRC: props}
 
     @dbus.service.method("org.freedesktop.DBus.Properties", in_signature="ss", out_signature="v")
@@ -322,11 +323,16 @@ class BleHid:
         self.registered.set()
         self.advertising.RegisterAdvertisement(dbus.ObjectPath(self.adv.PATH), {},
             reply_handler=lambda: LOG.info("BLE HID advertisement active"),
-            error_handler=lambda e: LOG.error("Advertisement registration failed: %s", e))
+            error_handler=self._advertisement_error)
+
+    def _advertisement_error(self, error):
+        self.failed = error
+        LOG.error("Advertisement registration failed: %s", error)
 
     def _registration_error(self, error):
         self.failed = error
         self.registered.set()
+        LOG.error("GATT application registration failed: %s", error)
 
     def publish(self, report: bytes):
         GLib.idle_add(self.report.notify, report)
@@ -461,6 +467,14 @@ def main():
         release_device(mouse)
         ble.stop()
         loop.quit()
+
+    def monitor_ble():
+        if ble.failed is not None:
+            shutdown()
+            return False
+        return not stop.is_set()
+
+    GLib.timeout_add(250, monitor_ble)
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
     keyboard_hotkey(keyboards, active, stop)
