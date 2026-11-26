@@ -136,11 +136,11 @@ class GattApplication(DBusObject):
 
     @dbus.service.method(DBUS_OM, out_signature="a{oa{sa{sv}}}")
     def GetManagedObjects(self):
-        objects = {self.service.path: self.service.get_properties()}
+        objects = {dbus.ObjectPath(self.service.path): self.service.get_properties()}
         for characteristic in self.service.characteristics:
-            objects[characteristic.path] = characteristic.get_properties()
+            objects[dbus.ObjectPath(characteristic.path)] = characteristic.get_properties()
             if characteristic.descriptor:
-                objects[characteristic.descriptor.path] = characteristic.descriptor.get_properties()
+                objects[dbus.ObjectPath(characteristic.descriptor.path)] = characteristic.descriptor.get_properties()
         return objects
 
 
@@ -161,7 +161,7 @@ class HidService(DBusObject):
     def get_properties(self):
         return {GATT_SERVICE: {"UUID": dbus.String(HID_UUID),
                                "Primary": dbus.Boolean(True),
-                               "Characteristics": dbus.Array([c.path for c in self.characteristics], signature="o")}}
+                               "Characteristics": dbus.Array([dbus.ObjectPath(c.path) for c in self.characteristics], signature="o")}}
 
     @dbus.service.method("org.freedesktop.DBus.Properties", in_signature="ss", out_signature="v")
     def Get(self, interface, prop):
@@ -189,7 +189,7 @@ class HidCharacteristic(DBusObject):
         props = {"UUID": dbus.String(self.uuid),
                  "Service": dbus.ObjectPath(HidService.path),
                  "Flags": dbus.Array(self.flags, signature="s"),
-                 "Descriptors": dbus.Array([self.descriptor.path] if self.descriptor else [], signature="o"),
+                 "Descriptors": dbus.Array([dbus.ObjectPath(self.descriptor.path)] if self.descriptor else [], signature="o"),
                  "Value": dbus.Array([dbus.Byte(b) for b in self.value], signature="y")}
         return {GATT_CHRC: props}
 
@@ -311,14 +311,14 @@ class BleHid:
         self.failed: Exception | None = None
 
     def start(self):
-        self.gatt.RegisterApplication(self.app.ROOT, {},
+        self.gatt.RegisterApplication(dbus.ObjectPath(self.app.ROOT), {},
             reply_handler=self._application_registered,
             error_handler=self._registration_error)
 
     def _application_registered(self):
         LOG.info("BlueZ GATT HID service registered")
         self.registered.set()
-        self.advertising.RegisterAdvertisement(self.adv.PATH, {},
+        self.advertising.RegisterAdvertisement(dbus.ObjectPath(self.adv.PATH), {},
             reply_handler=lambda: LOG.info("BLE HID advertisement active"),
             error_handler=lambda e: LOG.error("Advertisement registration failed: %s", e))
 
@@ -331,11 +331,11 @@ class BleHid:
 
     def stop(self):
         try:
-            self.advertising.UnregisterAdvertisement(self.adv.PATH)
+            self.advertising.UnregisterAdvertisement(dbus.ObjectPath(self.adv.PATH))
         except dbus.DBusException:
             pass
         try:
-            self.gatt.UnregisterApplication(self.app.ROOT)
+            self.gatt.UnregisterApplication(dbus.ObjectPath(self.app.ROOT))
         except dbus.DBusException:
             pass
 
