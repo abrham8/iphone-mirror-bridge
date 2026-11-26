@@ -122,6 +122,24 @@ class BridgeControllerTests(unittest.TestCase):
             ctl.handle_event(ev)
         self.assertEqual(reports.drain(), [bytes([0, 30, 0, 0])])  # moved; too slow for a tap
 
+    def test_builtin_touchpad_is_preferred_over_usb_receiver(self):
+        class Dev:
+            def __init__(self, name, props, mt):
+                self.name, self._props, self._mt = name, props, mt
+
+            def input_props(self):
+                return self._props
+
+            def capabilities(self, absinfo=False):
+                codes = [ecodes.ABS_X, ecodes.ABS_Y] + ([ecodes.ABS_MT_POSITION_X] if self._mt else [])
+                return {ecodes.EV_ABS: codes}
+
+        receiver = Dev("Logitech USB Receiver", [], False)
+        builtin = Dev("ASUF1411:00 2808:0204 Touchpad",
+                      [ecodes.INPUT_PROP_POINTER, ecodes.INPUT_PROP_BUTTONPAD], True)
+        ranked = sorted([receiver, builtin], key=mouse_bridge.touchpad_score, reverse=True)
+        self.assertIs(ranked[0], builtin)
+
     def test_argument_parsing(self):
         args = mouse_bridge.parse_args(["--adapter", "hci1", "--no-agent", "--start-active"])
         self.assertEqual(args.adapter, "hci1")

@@ -50,6 +50,26 @@ def device_is_touchpad(device: InputDevice) -> bool:
             and ecodes.BTN_TOUCH in keys and ecodes.BTN_TOOL_FINGER in keys and not direct)
 
 
+def touchpad_score(device: InputDevice) -> int:
+    """Rank touchpad candidates; real built-in touchpads score highest.
+
+    Some USB receivers (e.g. Logitech Unifying) advertise touchpad-like
+    capabilities without being one, so prefer devices the kernel marks as
+    pointers/clickpads with multitouch and "touchpad" in the name.
+    """
+    try:
+        props = set(device.input_props())
+    except (AttributeError, OSError):
+        props = set()
+    absolute = set(device.capabilities(absinfo=False).get(ecodes.EV_ABS, []))
+    score = 0
+    score += 2 if ecodes.INPUT_PROP_POINTER in props else 0
+    score += 1 if ecodes.INPUT_PROP_BUTTONPAD in props else 0
+    score += 1 if ecodes.ABS_MT_POSITION_X in absolute else 0
+    score += 2 if "touchpad" in device.name.lower() else 0
+    return score
+
+
 def device_is_keyboard(device: InputDevice, hotkey: int = ecodes.KEY_F8) -> bool:
     keys = set(device.capabilities(absinfo=False).get(ecodes.EV_KEY, []))
     return hotkey in keys and (ecodes.KEY_LEFTCTRL in keys or ecodes.KEY_RIGHTCTRL in keys)
@@ -84,6 +104,8 @@ def find_mouse_device(path: str | None = None, touchpad: bool = False) -> InputD
             device.close()
     if not candidates:
         raise RuntimeError(f"No readable {kind} found. Run as root or use --device /dev/input/eventN.")
+    if touchpad:
+        candidates.sort(key=touchpad_score, reverse=True)  # stable: keeps path order on ties
     if len(candidates) > 1:
         LOG.warning("Multiple %ss found (%s); selecting %s. Use --device to choose explicitly.", kind,
                     ", ".join(f"{d.path} {d.name!r}" for d in candidates), candidates[0].path)
