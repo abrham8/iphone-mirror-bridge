@@ -3,6 +3,10 @@
 #   iphone-mirror-screen          toggle: start if stopped, stop if running
 #   iphone-mirror-screen --start | --stop | --status
 #   iphone-mirror-screen --allow-firewall   let the iPhone through Wild OS's firewall
+#   iphone-mirror-screen --firewall-status  print what the firewall still blocks (exit 1 if anything)
+# The desktop app sets IPHONE_MIRROR_EMBED_SOCKET (show video in its own
+# window via a unix socket), IPHONE_MIRROR_FPS (30 or 60) and
+# IPHONE_MIRROR_QUIET=1 (it shows its own notifications).
 NAME="iPhone Mirror Bridge"
 LOG_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/iphone-mirror-bridge"
 LOG="$LOG_DIR/uxplay.log"
@@ -16,7 +20,7 @@ WILDOS_STATE="${WILDOS_STATE:-/run/wildos/firewall-state.json}"
 WILDOS_CONFIG="${WILDOS_CONFIG:-/etc/wildos/firewall.json}"
 
 notify() {
-    if command -v notify-send >/dev/null 2>&1; then
+    if [ -z "$IPHONE_MIRROR_QUIET" ] && command -v notify-send >/dev/null 2>&1; then
         notify-send -a "iPhone Screen Mirroring" -i iphone-mirror-bridge "$1" "$2" || true
     fi
     echo "$1: $2"
@@ -75,7 +79,7 @@ allow_firewall() {
 # never does; compliance=flexible outputs each frame at once. On Wayland,
 # waylandsink shows the GPU frames without copying them.
 video_args() {
-    set -- -fps 60
+    set -- -fps "${IPHONE_MIRROR_FPS:-60}"
     have=$(python3 -I -c '
 import gi
 gi.require_version("Gst", "1.0")
@@ -84,7 +88,10 @@ Gst.init(None)
 print(*[n for n in ("vah264dec", "waylandsink") if Gst.ElementFactory.find(n)])
 ' 2>/dev/null)
     case " $have " in *" vah264dec "*) set -- "$@" -vd "vah264dec compliance=flexible" ;; esac
-    if [ -n "$WAYLAND_DISPLAY" ]; then
+    if [ -n "$IPHONE_MIRROR_EMBED_SOCKET" ]; then
+        # Decoded frames go to the desktop app, which draws them in its window.
+        set -- "$@" -vs "unixfdsink socket-path=$IPHONE_MIRROR_EMBED_SOCKET"
+    elif [ -n "$WAYLAND_DISPLAY" ]; then
         case " $have " in *" waylandsink "*) set -- "$@" -vs waylandsink ;; esac
     fi
     printf '%s\n' "$@"
@@ -148,7 +155,8 @@ case "${1:-}" in
     --start) start ;;
     --stop) stop ;;
     --allow-firewall) allow_firewall ;;
+    --firewall-status) missing=$(wildos_missing); [ -n "$missing" ] && { echo "$missing"; exit 1; }; echo ok ;;
     --status) if running; then echo running; else echo stopped; exit 3; fi ;;
     "") if running; then stop; else start; fi ;;
-    *) echo "Usage: iphone-mirror-screen [--start|--stop|--status|--allow-firewall]" >&2; exit 2 ;;
+    *) echo "Usage: iphone-mirror-screen [--start|--stop|--status|--allow-firewall|--firewall-status]" >&2; exit 2 ;;
 esac

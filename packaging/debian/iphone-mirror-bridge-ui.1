@@ -1,0 +1,37 @@
+.TH IPHONE-MIRROR-BRIDGE-UI 1 "2026" "iphone-mirror-bridge" "User Commands"
+.SH NAME
+iphone-mirror-bridge-ui \- desktop app for iPhone Mirror Bridge
+.SH SYNOPSIS
+.B iphone-mirror-bridge-ui
+[\fB\-\-tray\fR|\fB\-\-connect\fR|\fB\-\-settings\fR] [\fB\-\-debug\fR]
+.SH DESCRIPTION
+Shows the iPhone's screen (AirPlay, through UxPlay) in a window with a device
+frame and toolbar, and controls the iPhone through the
+\fBiphone-mirror-bridge\fR service: click the screen to hand the touchpad and
+keyboard to the iPhone, press Ctrl+F8 to take them back. The toolbar has Home
+and App Switcher buttons. A system tray icon shows the connection state.
+.PP
+The Connect window shows the 6-digit code the iPhone asks for when pairing in
+its Bluetooth settings. Settings covers display, controls, notifications,
+paired devices and privacy.
+.PP
+Only one copy runs per user; starting it again brings up its window.
+.SH OPTIONS
+.TP
+.B \-\-tray
+Start in the system tray without opening a window (used at login).
+.TP
+.B \-\-connect
+Open the Connect iPhone window.
+.TP
+.B \-\-settings
+Open Settings.
+.SH FILES
+.I ~/.config/iphone-mirror-bridge/ui.json
+display and notification preferences.
+.br
+.I /var/lib/iphone-mirror-bridge/settings.json
+control settings, kept by the service.
+.SH SEE ALSO
+.BR iphone-mirror-bridge (1),
+.BR iphone-mirror-screen (1)

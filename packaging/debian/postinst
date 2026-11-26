@@ -29,10 +29,10 @@ if [ "$1" = "configure" ]; then
 
 iPhone Mirror Bridge is installed and running.
 
-On your iPhone:
-  1. Settings > Accessibility > Touch > AssistiveTouch: turn it on.
-  2. Settings > Bluetooth: tap "iPhone Mirror Bridge" to pair.
-Then press Ctrl+F8 on this computer to control the iPhone (again to switch back).
+Open "iPhone Mirror Bridge" from your application menu and choose Connect:
+it shows the 6-digit code your iPhone asks for when you pair it in
+Settings > Bluetooth. Turn on AssistiveTouch on the iPhone
+(Settings > Accessibility > Touch) to see the pointer.
 
 Status: systemctl status iphone-mirror-bridge
 Settings: /etc/iphone-mirror-bridge/bridge.conf

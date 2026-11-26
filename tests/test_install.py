@@ -39,7 +39,13 @@ class DebPackageTests(unittest.TestCase):
                      "./usr/share/man/man1/iphone-mirror-bridge.1.gz",
                      "./usr/share/doc/iphone-mirror-bridge/copyright",
                      "./usr/bin/iphone-mirror-screen",
-                     "./usr/share/applications/iphone-mirror-screen.desktop",
+                     "./usr/share/applications/iphone-mirror-bridge-ui.desktop",
+                     "./etc/xdg/autostart/iphone-mirror-bridge-ui.desktop",
+                     "./usr/bin/iphone-mirror-bridge-ui",
+                     "./usr/lib/iphone-mirror-bridge/ui/iphone_mirror_bridge_ui/app.py",
+                     "./usr/lib/iphone-mirror-bridge/ui/iphone_mirror_bridge_ui/qml/MirrorWindow.qml",
+                     "./usr/lib/iphone-mirror-bridge/ui/iphone_mirror_bridge_ui/assets/app-logo.svg",
+                     "./usr/share/man/man1/iphone-mirror-bridge-ui.1.gz",
                      "./usr/share/icons/hicolor/scalable/apps/iphone-mirror-bridge.svg"):
             self.assertIn(path, listing)
 

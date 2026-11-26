@@ -22,7 +22,9 @@ jobs:
         shell: bash  # enables pipefail so a test failure is not hidden by tee
         run: |
           /usr/bin/python3 -m unittest discover -s tests -v 2>&1 | tee test-output.txt
-          if grep -q "skipped" test-output.txt; then
+          # UI tests need PySide6, which this Ubuntu job does not install;
+          # they run (with no skips allowed) in the Debian package job below.
+          if grep "skipped" test-output.txt | grep -v "test_ui\." ; then
             echo "::error::Tests were skipped; system packages missing"; exit 1
           fi
 
@@ -43,13 +45,29 @@ jobs:
         run: |
           apt-get install -y ./dist/iphone-mirror-bridge_*_all.deb
           iphone-mirror-bridge --version
+          iphone-mirror-bridge-ui --version
           test -L /etc/systemd/system/multi-user.target.wants/iphone-mirror-bridge.service
           test -f /etc/iphone-mirror-bridge/bridge.conf
-      - name: Run tests against the installed system packages
+          test -f /etc/xdg/autostart/iphone-mirror-bridge-ui.desktop
+          test -f /usr/share/dbus-1/system.d/io.github.abrham8.IPhoneMirrorBridge.conf
+      - name: Run all tests (including the UI) against the installed system packages
+        shell: bash  # pipefail: a failing test must fail the job despite tee
+        env:
+          QT_QPA_PLATFORM: offscreen
         run: |
-          apt-get install -y --no-install-recommends dbus
+          apt-get install -y --no-install-recommends dbus gstreamer1.0-tools
           python3 -m unittest discover -s tests -v 2>&1 | tee test-output.txt
-          ! grep -q "skipped" test-output.txt
+          if grep -q "skipped" test-output.txt; then
+            echo "::error::Tests were skipped on Debian 13"; exit 1
+          fi
+      - name: Render the UI windows (screenshots)
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python3 ui/tools/render_screens.py ui-screenshots
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ui-screenshots
+          path: ui-screenshots/*.png
       - name: Remove and purge
         run: |
           apt-get remove -y iphone-mirror-bridge

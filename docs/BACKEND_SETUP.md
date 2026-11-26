@@ -134,7 +134,7 @@ The tests cover HID report encoding, mode switching, the D-Bus GATT objects (usi
 
 ## UxPlay AirPlay receiver
 
-The package installs UxPlay and an **iPhone Screen Mirroring** launcher (`iphone-mirror-screen`). It runs, as the desktop user:
+The package installs UxPlay and `iphone-mirror-screen`, which the desktop app uses to run the receiver as the desktop user (the app adds `-vs "unixfdsink socket-path=..."` so it can draw the video in its own window):
 
 ```bash
 uxplay -n "iPhone Mirror Bridge" -nh -p -key ~/.cache/iphone-mirror-bridge/uxplay.pem

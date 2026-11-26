@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=iPhone Mirror Bridge
+Comment=System tray icon for iPhone Mirror Bridge
+Exec=iphone-mirror-bridge-ui --tray
+Icon=iphone-mirror-bridge
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true

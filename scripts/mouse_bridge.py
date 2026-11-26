@@ -24,7 +24,7 @@ from ble_hid import BleHid, adapter_provides_device_info, find_adapter, set_le_c
 from control import BUS_NAME, DEFAULT_SETTINGS_PATH, BridgeControl, SettingsStore, logind_authorizer
 from hid_report import HotkeyDetector, ReportAccumulator, TouchpadTranslator
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 LOG = logging.getLogger("mouse-bridge")
 DEFAULT_REPORT_INTERVAL_MS = 15
 # Preferred LE connection interval in 1.25 ms units: 15-30 ms (Apple HID guidelines).

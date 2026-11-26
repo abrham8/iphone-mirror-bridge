@@ -1,0 +1,20 @@
+[Desktop Entry]
+Type=Application
+Name=iPhone Mirror Bridge
+GenericName=iPhone Mirroring
+Comment=See and control your iPhone from this computer
+Exec=iphone-mirror-bridge-ui
+Icon=iphone-mirror-bridge
+Terminal=false
+Categories=Utility;
+Keywords=iPhone;AirPlay;mirror;screen;touchpad;bluetooth;
+StartupNotify=false
+Actions=Connect;Settings;
+
+[Desktop Action Connect]
+Name=Connect iPhone
+Exec=iphone-mirror-bridge-ui --connect
+
+[Desktop Action Settings]
+Name=Settings
+Exec=iphone-mirror-bridge-ui --settings

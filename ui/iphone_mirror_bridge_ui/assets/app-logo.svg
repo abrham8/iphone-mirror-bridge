@@ -1,0 +1,16 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Relay Logo" clip-path="url(#clip0_0_10)">
+<path id="Vector" d="M52 0H20C8.9543 0 0 8.9543 0 20V52C0 63.0457 8.9543 72 20 72H52C63.0457 72 72 63.0457 72 52V20C72 8.9543 63.0457 0 52 0Z" fill="url(#paint0_linear_0_10)"/>
+<path id="Vector_2" d="M32 16H40C43.3137 16 46 18.6863 46 22V46C46 49.3137 43.3137 52 40 52H32C28.6863 52 26 49.3137 26 46V22C26 18.6863 28.6863 16 32 16Z" stroke-width="3" stroke="white"/>
+<path id="Vector_3" d="M14 30C11 34 11 38 14 42M58 30C61 34 61 38 58 42" stroke-width="3" stroke-linecap="round" stroke="white"/>
+</g>
+<defs>
+<linearGradient id="paint0_linear_0_10" x1="0" y1="0" x2="5184" y2="5184" gradientUnits="userSpaceOnUse">
+<stop stop-color="#7C5CFF"/>
+<stop offset="1" stop-color="#3AC8FF"/>
+</linearGradient>
+<clipPath id="clip0_0_10">
+<rect width="72" height="72" fill="white"/>
+</clipPath>
+</defs>
+</svg>
