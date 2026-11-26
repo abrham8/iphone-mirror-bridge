@@ -13,7 +13,6 @@ RestartSec=3
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/iphone-mirror-bridge
 PrivateTmp=true
 
 [Install]
