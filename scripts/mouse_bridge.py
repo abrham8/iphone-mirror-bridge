@@ -154,7 +154,7 @@ class HidService(DBusObject):
             HidCharacteristic(bus, path + "/char0", HID_INFO_UUID, ["encrypt-read"], bytes([0x11, 0x01, 0x00, 0x02])),
             HidCharacteristic(bus, path + "/char1", REPORT_MAP_UUID, ["encrypt-read"], REPORT_MAP),
             HidCharacteristic(bus, path + "/char2", HID_CONTROL_UUID, ["write-without-response", "encrypt-write"], b"\x00"),
-            HidCharacteristic(bus, path + "/char3", PROTOCOL_MODE_UUID, ["encrypt-read", "encrypt-write"], b"\x01"),
+            HidCharacteristic(bus, path + "/char3", PROTOCOL_MODE_UUID, ["encrypt-read", "write-without-response", "encrypt-write"], b"\x01"),
             HidCharacteristic(bus, path + "/char4", REPORT_UUID, ["encrypt-read", "encrypt-notify"], build_hid_report(0), report=True),
         ]
         self.characteristics[-1].descriptor = ReportReference(bus, path + "/char4/desc0")
@@ -278,6 +278,8 @@ class Advertisement(DBusObject):
 
     def get_properties(self):
         return {LE_ADV: {"Type": dbus.String("peripheral"),
+                         "Discoverable": dbus.Boolean(True),
+                         "DiscoverableTimeout": dbus.UInt16(0),
                          "ServiceUUIDs": dbus.Array([HID_UUID], signature="s"),
                          "LocalName": dbus.String(self.local_name),
                          "Appearance": dbus.UInt16(0x03C2),
