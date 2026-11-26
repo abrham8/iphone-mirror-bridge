@@ -1,0 +1,13 @@
+[Unit]
+Description=UxPlay AirPlay screen mirroring receiver
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/uxplay -n "iPhone Mirror Bridge"
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target
