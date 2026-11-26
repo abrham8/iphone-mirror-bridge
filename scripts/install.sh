@@ -10,4 +10,9 @@ if pgrep -f "python3 scripts/mouse_bridge.py" >/dev/null; then
   exit 1
 fi
 deb=$(scripts/build_deb.sh)
-apt-get install -y "./$deb"
+# apt's download user (_apt) cannot read files under /home; install from /tmp.
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+install -m 0644 "$deb" "$tmp/"
+chmod 0755 "$tmp"
+apt-get install -y "$tmp/$(basename "$deb")"
