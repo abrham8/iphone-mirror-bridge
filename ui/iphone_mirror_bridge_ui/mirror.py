@@ -103,7 +103,8 @@ class FrameSource(QObject):
         if sample is None:
             return Gst.FlowReturn.OK
         caps = sample.get_caps().get_structure(0)
-        width, height = caps.get_value("width"), caps.get_value("height")
+        # get_int works with both the GStreamer 1.24 and 1.26 Python bindings.
+        width, height = caps.get_int("width")[1], caps.get_int("height")[1]
         buffer = sample.get_buffer()
         ok, info = buffer.map(Gst.MapFlags.READ)
         if ok:

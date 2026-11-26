@@ -97,7 +97,16 @@ print(*[n for n in ("vah264dec", "waylandsink") if Gst.ElementFactory.find(n)])
     printf '%s\n' "$@"
 }
 
-running() { pgrep -u "$(id -u)" -x uxplay >/dev/null 2>&1; }
+# True if a live (not zombie) uxplay runs for this user.
+running() {
+    for pid in $(pgrep -u "$(id -u)" -x uxplay 2>/dev/null); do
+        case "$(ps -o stat= -p "$pid" 2>/dev/null)" in
+            Z*|"") ;;
+            *) return 0 ;;
+        esac
+    done
+    return 1
+}
 
 start() {
     if running; then
