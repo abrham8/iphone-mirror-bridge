@@ -84,3 +84,24 @@ Use `--start-active` to start in phone mode. Keep a keyboard available: phone mo
 - Do not enable the systemd service until manual startup, pairing, reconnect, and safe shutdown have been tested.
 - If the iPhone cannot discover the device, verify adapter peripheral support, BlueZ advertisement registration, and visibility with a BLE scanner.
 - If pairing works but no pointer appears, inspect HID service discovery, Report Map, Report Reference descriptor, notification subscription, and AssistiveTouch Pointer Devices settings.
+
+## UxPlay AirPlay receiver
+
+Install UxPlay separately from the BLE bridge. On Debian releases that package it:
+
+```bash
+sudo apt install uxplay
+uxplay -h
+```
+
+The repository includes a **user** service unit at `systemd/uxplay.service`. Install it for the desktop account (not as root):
+
+```bash
+mkdir -p ~/.config/systemd/user
+cp systemd/uxplay.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now uxplay.service
+systemctl --user status uxplay.service
+```
+
+The unit assumes UxPlay is installed at `/usr/bin/uxplay`. If `command -v uxplay` reports another path, edit `ExecStart` accordingly. UxPlay needs an active graphical session to display video unless you configure a suitable headless video sink. Ensure mDNS/DNS-SD traffic (UDP 5353) and UxPlay's negotiated media ports are allowed on the local network. See the [upstream UxPlay documentation](https://github.com/FDH2/UxPlay) for GStreamer sink, firewall, and display configuration.
