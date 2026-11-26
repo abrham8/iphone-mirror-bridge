@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import os
 import signal
 import threading
 import time
@@ -362,9 +361,9 @@ def find_adapter(bus) -> str:
     manager = dbus.Interface(bus.get_object(BLUEZ, "/"), DBUS_OM)
     objects = manager.GetManagedObjects()
     for path, interfaces in objects.items():
-        if "org.bluez.Adapter1" in interfaces:
-            if interfaces[path].get("Powered", True):
-                return str(path)
+        adapter_props = interfaces.get("org.bluez.Adapter1")
+        if adapter_props and bool(adapter_props.get("Powered", False)):
+            return str(path)
     raise RuntimeError("No powered Bluetooth adapter found. Enable Bluetooth with bluetoothctl.")
 
 
@@ -418,7 +417,7 @@ def capture_mouse(device: InputDevice, ble: BleHid, active: threading.Event, sto
             if event.type == ecodes.EV_REL:
                 if event.code == ecodes.REL_X: state.dx += event.value
                 elif event.code == ecodes.REL_Y: state.dy += event.value
-                elif event.code in (ecodes.REL_WHEEL, getattr(ecodes, "REL_WHEEL_HI_RES", -1)):
+                elif event.code == ecodes.REL_WHEEL:
                     state.wheel += event.value
             elif event.type == ecodes.EV_KEY:
                 mask = {ecodes.BTN_LEFT: 0, ecodes.BTN_RIGHT: 1, ecodes.BTN_MIDDLE: 2}.get(event.code)
@@ -426,7 +425,10 @@ def capture_mouse(device: InputDevice, ble: BleHid, active: threading.Event, sto
                     if event.value: state.buttons |= 1 << mask
                     else: state.buttons &= ~(1 << mask)
             now = time.monotonic()
-            if active.is_set() and (state.dx or state.dy or state.wheel or now - last_sent > 0.03):
+            if not active.is_set():
+                state.dx = state.dy = state.wheel = 0
+                continue
+            if state.dx or state.dy or state.wheel or now - last_sent > 0.03:
                 ble.publish(state.report())
                 last_sent = now
     except OSError as exc:
