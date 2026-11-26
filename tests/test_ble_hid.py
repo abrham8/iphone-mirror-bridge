@@ -62,6 +62,7 @@ class BleHidDbusTests(unittest.TestCase):
     def setUpClass(cls):
         cls.start_bus()
         cls.ble = ble_hid.BleHid(cls.bus, ble_hid.find_adapter(cls.bus, "hci0"), "iPhone Mirror Bridge")
+        cls.ble.ADV_RETRY_MS = 50
         cls.ble.start()
         wait_for(lambda: cls.ble.adv_registered or cls.ble.failed is not None)
 
@@ -113,6 +114,7 @@ class BleHidDbusTests(unittest.TestCase):
         self.assertTrue(self.ble.app_registered)
         log = self.fake_log()
         self.assertIn("Set Pairable=True", log)
+        self.assertIn("RegisterAdvertisement transient failure", log)  # retried successfully
         self.assertIn("RegisterAgent /com/iphone_mirror_bridge/agent NoInputNoOutput", log)
         self.assertIn("RegisterApplication /com/iphone_mirror_bridge services=3 chrcs=8", log)
         self.assertIn("RegisterAdvertisement /com/iphone_mirror_bridge/advertisement0 name=iPhone Mirror Bridge", log)

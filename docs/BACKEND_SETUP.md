@@ -102,7 +102,7 @@ Use `--start-active` to start in phone mode. Keep a keyboard available: phone mo
 
 The iPhone decides how often it exchanges data with the bridge (the LE connection interval). As a peripheral, Linux asks it for 30-50 ms by default, which makes the pointer lag. While running, the bridge asks for 15-30 ms by writing `/sys/kernel/debug/bluetooth/hciN/conn_min_interval` and `conn_max_interval` (root only; restored on exit). The request is made when the iPhone connects, so start the bridge before the iPhone reconnects.
 
-If the log says it could not set the interval, set it permanently in `/etc/bluetooth/main.conf` instead, then `sudo systemctl restart bluetooth`:
+If the log says it could not set the interval (common with Secure Boot, which blocks debugfs), run `sudo scripts/set_le_interval.sh` once. It backs up and edits `/etc/bluetooth/main.conf` and restarts bluetooth. The change it makes is:
 
 ```ini
 [LE]

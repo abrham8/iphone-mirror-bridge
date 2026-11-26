@@ -139,6 +139,11 @@ class Adapter(dbus.service.Object):
     @dbus.service.method("org.bluez.LEAdvertisingManager1", in_signature="oa{sv}",
                          sender_keyword="sender", async_callbacks=("ok", "err"))
     def RegisterAdvertisement(self, path, options, sender, ok, err):
+        self.adv_attempts = getattr(self, "adv_attempts", 0) + 1
+        if self.adv_attempts == 1:  # real BlueZ sometimes fails transiently
+            self.log.append("RegisterAdvertisement transient failure")
+            err(Failed("Failed to register advertisement"))
+            return
         props = dbus.Interface(self.bus.get_object(sender, path), "org.freedesktop.DBus.Properties")
 
         def got(values):

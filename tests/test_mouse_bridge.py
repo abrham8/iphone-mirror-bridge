@@ -155,7 +155,7 @@ class BridgeControllerTests(unittest.TestCase):
             self.assertEqual((folder / "conn_max_interval").read_text(), "24")
             ble_hid.set_le_connection_interval("hci0", *old, base=base)
             self.assertEqual((folder / "conn_max_interval").read_text(), "40")
-            with self.assertLogs("mouse-bridge.ble", "WARNING"):
+            with self.assertLogs("mouse-bridge.ble", "INFO"):
                 self.assertIsNone(ble_hid.set_le_connection_interval("hci9", 12, 24, base=base))
 
     def test_argument_parsing(self):

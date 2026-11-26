@@ -12,6 +12,7 @@ from typing import Callable
 import dbus
 import dbus.exceptions
 import dbus.service
+from gi.repository import GLib
 
 from hid_report import build_hid_report
 
@@ -476,8 +477,8 @@ def set_le_connection_interval(hci: str, min_units: int, max_units: int,
             min_file.write_text(str(min_units))
         return old
     except (OSError, ValueError) as exc:
-        LOG.warning("Could not set the LE connection interval via %s (%s). "
-                    "Pointer latency may be higher; see docs/BACKEND_SETUP.md.", folder, exc)
+        LOG.info("Could not set the LE connection interval at runtime (%s). If the pointer lags, run "
+                 "once: sudo scripts/set_le_interval.sh", exc)
         return None
 
 
@@ -527,20 +528,35 @@ class BleHid:
         except dbus.DBusException as exc:
             LOG.warning("Pairing agent registered but is not the default agent: %s", exc)
 
+    ADV_ATTEMPTS = 5
+    ADV_RETRY_MS = 1000
+
     def _application_registered(self):
         self.app_registered = True
         LOG.info("BlueZ GATT HID service registered")
+        self._adv_attempt = 0
+        self._register_advertisement()
+
+    def _register_advertisement(self):
+        self._adv_attempt += 1
         self.advertising.RegisterAdvertisement(dbus.ObjectPath(self.adv.PATH), {},
                                                reply_handler=self._advertisement_registered,
                                                error_handler=self._advertisement_error)
+        return False  # one-shot when used as a GLib timeout
 
     def _advertisement_registered(self):
         self.adv_registered = True
         LOG.info("BLE HID advertisement active as %r", self.adv.local_name)
 
     def _advertisement_error(self, error):
+        if self._adv_attempt < self.ADV_ATTEMPTS:
+            LOG.warning("Advertisement registration failed (%s); retrying (%d/%d)",
+                        error, self._adv_attempt, self.ADV_ATTEMPTS)
+            GLib.timeout_add(self.ADV_RETRY_MS, self._register_advertisement)
+            return
         self.failed = error
-        LOG.error("Advertisement registration failed: %s", error)
+        LOG.error("Advertisement registration failed: %s. Check that no other copy of the bridge is "
+                  "running (pgrep -af mouse_bridge) and see: sudo journalctl -u bluetooth -n 30", error)
 
     def _registration_error(self, error):
         self.failed = error
