@@ -18,7 +18,8 @@ from pathlib import Path
 import gi
 
 gi.require_version("Gst", "1.0")
-from gi.repository import GLib, Gst  # noqa: E402
+gi.require_version("GstVideo", "1.0")
+from gi.repository import GLib, Gst, GstVideo  # noqa: E402
 from PySide6.QtCore import Property, QObject, QRectF, Qt, QTimer, Signal, Slot  # noqa: E402
 from PySide6.QtGui import QColor, QImage, QPainter, QPainterPath  # noqa: E402
 from PySide6.QtQuick import QQuickPaintedItem  # noqa: E402
@@ -102,17 +103,17 @@ class FrameSource(QObject):
         sample = sink.emit("pull-sample")
         if sample is None:
             return Gst.FlowReturn.OK
-        caps = sample.get_caps().get_structure(0)
-        # get_int works with both the GStreamer 1.24 and 1.26 Python bindings.
-        width, height = caps.get_int("width")[1], caps.get_int("height")[1]
+        # VideoInfo works the same with the GStreamer 1.24 and 1.26 Python
+        # bindings (1.26 wraps caps structures differently) and gives the stride.
+        info = GstVideo.VideoInfo.new_from_caps(sample.get_caps())
+        width, height, stride = info.width, info.height, info.stride[0]
         buffer = sample.get_buffer()
-        ok, info = buffer.map(Gst.MapFlags.READ)
+        ok, mapped = buffer.map(Gst.MapFlags.READ)
         if ok:
             try:
-                stride = len(info.data) // height if height else width * 4
-                image = QImage(info.data, width, height, stride, QImage.Format_RGBX8888).copy()
+                image = QImage(mapped.data, width, height, stride, QImage.Format_RGBX8888).copy()
             finally:
-                buffer.unmap(info)
+                buffer.unmap(mapped)
             self.frame.emit(image)
         return Gst.FlowReturn.OK
 
