@@ -27,7 +27,8 @@ start() {
     mkdir -p "$LOG_DIR"
     # -nh: exact name; -p: fixed ports (TCP 7000,7001,7100 / UDP 6000,6001,7011)
     # -key: keep the same identity so the iPhone recognises this receiver.
-    nohup uxplay -n "$NAME" -nh -p -key "$LOG_DIR/uxplay.pem" >"$LOG" 2>&1 &
+    # stdbuf: uxplay buffers output when not on a terminal; keep the log current.
+    nohup stdbuf -oL -eL uxplay -n "$NAME" -nh -p -key "$LOG_DIR/uxplay.pem" >"$LOG" 2>&1 &
     sleep 2
     if running; then
         notify "Ready for screen mirroring" "On the iPhone: Control Center > Screen Mirroring > $NAME"
