@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.py[cod]
+.AppDir/
+*.AppImage
+build/
+dist/
+.pytest_cache/
