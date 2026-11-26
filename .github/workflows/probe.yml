@@ -1,0 +1,16 @@
+name: Probe
+on: push
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    container: debian:trixie
+    steps:
+      - run: |
+          apt-get update >/dev/null
+          for p in uxplay gstreamer1.0-qt6 gstreamer1.0-gtk4 python3-pyside6.qtquick python3-pyside6.qtwidgets python3-pyside6.qtgui python3-pyside6.qtqml python3-pyside6.qtsvg qml6-module-qtquick qml6-module-qtquick-effects qml6-module-qtquick-controls qml6-module-qtquick-window qml6-module-qtquick-layouts qml6-module-qtqml-workerscript qml6-module-qt5compat-graphicaleffects python3-gst-1.0 gir1.2-gtk-4.0 gir1.2-gst-plugins-base-1.0 gstreamer1.0-plugins-bad; do
+            printf '%-45s %s\n' "$p" "$(apt-cache policy $p | sed -n 's/ *Candidate: //p')"
+          done
+          apt-get install -y --no-install-recommends gstreamer1.0-plugins-bad gstreamer1.0-qt6 gstreamer1.0-tools >/dev/null 2>&1 || true
+          gst-inspect-1.0 unixfdsink | grep -E "Long-name|Version" || echo "no unixfdsink"
+          gst-inspect-1.0 qml6glsink | grep -E "Long-name|Version" || echo "no qml6glsink"
+          apt-cache show python3-pyside6.qtquick | grep -E "^Version|^Depends" | head -3
