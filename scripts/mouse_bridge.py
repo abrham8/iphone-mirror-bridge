@@ -190,8 +190,7 @@ class HidCharacteristic(DBusObject):
         props = {"UUID": dbus.String(self.uuid),
                  "Service": dbus.ObjectPath(HidService.path),
                  "Flags": dbus.Array(self.flags, signature="s"),
-                 "Descriptors": dbus.Array([dbus.ObjectPath(self.descriptor.path)] if self.descriptor else [], signature="o"),
-                 "Value": dbus.Array([dbus.Byte(b) for b in self.value], signature="y")}
+                 "Descriptors": dbus.Array([dbus.ObjectPath(self.descriptor.path)] if self.descriptor else [], signature="o")}
         return {GATT_CHRC: props}
 
     @dbus.service.method("org.freedesktop.DBus.Properties", in_signature="ss", out_signature="v")
@@ -218,7 +217,9 @@ class HidCharacteristic(DBusObject):
         if self.uuid == HID_CONTROL_UUID:
             self.value = bytes(value)
         elif self.uuid == PROTOCOL_MODE_UUID:
-            self.value = bytes(value)
+            if bytes(value) != b"\\x01":
+                raise dbus.exceptions.DBusException("org.bluez.Error.NotSupported")
+            self.value = b"\\x01"
 
     @dbus.service.method(GATT_CHRC)
     def StartNotify(self):
