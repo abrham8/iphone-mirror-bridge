@@ -11,7 +11,7 @@ if pgrep -f "python3 scripts/mouse_bridge.py" >/dev/null; then
 fi
 deb=$(scripts/build_deb.sh)
 # apt's download user (_apt) cannot read files under /home; install from /tmp.
-tmp=$(mktemp -d)
+tmp=$(mktemp -d /tmp/iphone-mirror-bridge.XXXXXX)  # not $TMPDIR: may be private (e.g. /tmp/user/0)
 trap 'rm -rf "$tmp"' EXIT
 install -m 0644 "$deb" "$tmp/"
 chmod 0755 "$tmp"
