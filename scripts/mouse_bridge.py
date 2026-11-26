@@ -150,11 +150,11 @@ class HidService(DBusObject):
     def __init__(self, bus, path):
         super().__init__(bus, path)
         self.characteristics = [
-            HidCharacteristic(bus, path + "/char0", HID_INFO_UUID, ["read"], bytes([0x11, 0x01, 0x00, 0x02])),
-            HidCharacteristic(bus, path + "/char1", REPORT_MAP_UUID, ["read"], REPORT_MAP),
-            HidCharacteristic(bus, path + "/char2", HID_CONTROL_UUID, ["write-without-response"], b"\x00"),
-            HidCharacteristic(bus, path + "/char3", PROTOCOL_MODE_UUID, ["read", "write-without-response"], b"\x01"),
-            HidCharacteristic(bus, path + "/char4", REPORT_UUID, ["read", "notify"], build_hid_report(0), report=True),
+            HidCharacteristic(bus, path + "/char0", HID_INFO_UUID, ["encrypt-read"], bytes([0x11, 0x01, 0x00, 0x02])),
+            HidCharacteristic(bus, path + "/char1", REPORT_MAP_UUID, ["encrypt-read"], REPORT_MAP),
+            HidCharacteristic(bus, path + "/char2", HID_CONTROL_UUID, ["write-without-response", "encrypt-write"], b"\x00"),
+            HidCharacteristic(bus, path + "/char3", PROTOCOL_MODE_UUID, ["encrypt-read", "encrypt-write"], b"\x01"),
+            HidCharacteristic(bus, path + "/char4", REPORT_UUID, ["encrypt-read", "encrypt-notify"], build_hid_report(0), report=True),
         ]
         self.characteristics[-1].descriptor = ReportReference(bus, path + "/char4/desc0")
 
@@ -189,6 +189,7 @@ class HidCharacteristic(DBusObject):
         props = {"UUID": dbus.String(self.uuid),
                  "Service": dbus.ObjectPath(HidService.path),
                  "Flags": dbus.Array(self.flags, signature="s"),
+                 "Descriptors": dbus.Array([self.descriptor.path] if self.descriptor else [], signature="o"),
                  "Value": dbus.Array([dbus.Byte(b) for b in self.value], signature="y")}
         return {GATT_CHRC: props}
 
@@ -245,7 +246,7 @@ class ReportReference(DBusObject):
     def get_properties(self):
         return {GATT_DESC: {"UUID": dbus.String(REPORT_REF_UUID),
                             "Characteristic": dbus.ObjectPath(HidService.path + "/char4"),
-                            "Flags": dbus.Array(["read"], signature="s"),
+                            "Flags": dbus.Array(["encrypt-read"], signature="s"),
                             "Value": dbus.Array([dbus.Byte(1), dbus.Byte(1)], signature="y")}}
 
     @dbus.service.method("org.freedesktop.DBus.Properties", in_signature="ss", out_signature="v")
@@ -311,8 +312,12 @@ class BleHid:
 
     def start(self):
         self.gatt.RegisterApplication(self.app.ROOT, {},
-            reply_handler=lambda: self.registered.set(),
+            reply_handler=self._application_registered,
             error_handler=self._registration_error)
+
+    def _application_registered(self):
+        LOG.info("BlueZ GATT HID service registered")
+        self.registered.set()
         self.advertising.RegisterAdvertisement(self.adv.PATH, {},
             reply_handler=lambda: LOG.info("BLE HID advertisement active"),
             error_handler=lambda e: LOG.error("Advertisement registration failed: %s", e))
