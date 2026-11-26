@@ -123,7 +123,8 @@ def make_touchpad_translator(device: InputDevice, reports: ReportAccumulator, ar
             return float(info.resolution)
         return max(1.0, (info.max - info.min) / 100.0)  # assume a ~100 mm wide pad
     return TouchpadTranslator(reports, units_per_mm(ecodes.ABS_X), units_per_mm(ecodes.ABS_Y),
-                              speed=args.touchpad_speed, natural_scroll=not args.reverse_scroll,
+                              speed=args.touchpad_speed, scroll_mm_per_step=1.0 / args.scroll_speed,
+                              natural_scroll=not args.reverse_scroll,
                               tap_to_click=not args.no_tap)
 
 
@@ -298,8 +299,10 @@ def parse_args(argv=None):
     parser.add_argument("--device", help="Mouse or touchpad /dev/input/eventN (auto-detected if omitted)")
     parser.add_argument("--touchpad", action="store_true",
                         help="Auto-select the built-in touchpad instead of a mouse")
-    parser.add_argument("--touchpad-speed", type=float, default=12.0,
-                        help="Touchpad pointer speed in counts per mm (default 12)")
+    parser.add_argument("--touchpad-speed", type=float, default=20.0,
+                        help="Touchpad pointer speed in counts per mm (default 20)")
+    parser.add_argument("--scroll-speed", type=float, default=1.0,
+                        help="Touchpad scroll steps per mm of two-finger travel (default 1)")
     parser.add_argument("--reverse-scroll", action="store_true",
                         help="Touchpad: traditional instead of natural two-finger scrolling")
     parser.add_argument("--no-tap", action="store_true", help="Touchpad: disable tap-to-click")

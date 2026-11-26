@@ -163,7 +163,7 @@ class TouchpadTranslator:
     TAP_MAX_TRAVEL_MM = 1.5
 
     def __init__(self, reports: ReportAccumulator, units_per_mm_x: float, units_per_mm_y: float,
-                 speed: float = 12.0, scroll_mm_per_step: float = 2.5, natural_scroll: bool = True,
+                 speed: float = 20.0, scroll_mm_per_step: float = 1.0, natural_scroll: bool = True,
                  tap_to_click: bool = True):
         self.reports = reports
         self.upmm_x = units_per_mm_x or 1.0

@@ -4,16 +4,16 @@ A Debian-first experiment for viewing and controlling a nearby iPhone from Linux
 
 ## Status
 
-Early hardware-integration project. The mouse bridge is implemented and covered by automated tests (including an end-to-end run against a fake BlueZ), but has **not** been validated against a physical BLE adapter or iPhone. Treat it as experimental, not as a working release.
+Early hardware-integration project, now partly hardware-verified. First real test (Debian 13.8, kernel 7.3, BlueZ 5.82, Intel adapter, ASUS laptop touchpad, iPhone with AssistiveTouch): advertising, pairing, pointer movement, clicking and Ctrl+F8 mode switching work. Scrolling, right-click, reconnect after reboot, and external-mouse mode still need testing. Treat it as experimental, not as a release.
 
 | Component | Status |
 |---|---|
 | evdev mouse discovery and event parsing | Implemented; hardware testing needed |
-| Laptop touchpad (move, tap, click, two-finger scroll) | Implemented; hardware testing needed |
+| Laptop touchpad (move, tap, click, two-finger scroll) | Movement and clicks verified on hardware; scroll tuning in progress |
 | HID mouse report descriptor and encoding | Implemented; descriptor validation needed |
-| BlueZ GATT HID service and advertisement | Implemented; tested against fake BlueZ; real BlueZ/iOS testing needed |
-| Pairing agent (Just Works, auto-trust) | Implemented; iOS testing needed |
-| Ctrl+F8 mode toggle and evdev grab | Implemented; desktop testing needed |
+| BlueZ GATT HID service and advertisement | Verified with BlueZ 5.82 and iOS |
+| Pairing agent (Just Works, auto-trust) | Verified with iOS |
+| Ctrl+F8 mode toggle and evdev grab | Verified on hardware (KDE) |
 | UxPlay user service | Implemented; display/network testing needed |
 | AppImage | Not implemented |
 
