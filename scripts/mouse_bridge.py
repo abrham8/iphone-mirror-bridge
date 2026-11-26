@@ -217,9 +217,9 @@ class HidCharacteristic(DBusObject):
         if self.uuid == HID_CONTROL_UUID:
             self.value = bytes(value)
         elif self.uuid == PROTOCOL_MODE_UUID:
-            if bytes(value) != b"\\x01":
+            if bytes(value) != b"\x01":
                 raise dbus.exceptions.DBusException("org.bluez.Error.NotSupported")
-            self.value = b"\\x01"
+            self.value = b"\x01"
 
     @dbus.service.method(GATT_CHRC)
     def StartNotify(self):
