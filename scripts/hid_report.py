@@ -141,3 +141,133 @@ class HotkeyDetector:
                 self._held.discard(code)
             return False
         return code == self.trigger_code and value == 1 and bool(self._held)
+
+
+class TouchpadTranslator:
+    """Turn absolute touchpad frames into relative mouse input.
+
+    * One finger moves the pointer.
+    * Two fingers scroll vertically.
+    * Pressing the pad clicks: left, or right with two fingers on the pad.
+    * Tapping clicks: one finger = left, two = right, three = middle.
+
+    Positions are in device units; units_per_mm converts them to millimetres.
+    Output goes to a ReportAccumulator.
+    """
+
+    TAP_MAX_SECONDS = 0.18
+    TAP_MAX_TRAVEL_MM = 1.5
+
+    def __init__(self, reports: ReportAccumulator, units_per_mm_x: float, units_per_mm_y: float,
+                 speed: float = 12.0, scroll_mm_per_step: float = 2.5, natural_scroll: bool = True,
+                 tap_to_click: bool = True):
+        self.reports = reports
+        self.upmm_x = units_per_mm_x or 1.0
+        self.upmm_y = units_per_mm_y or 1.0
+        self.speed = speed  # HID counts per millimetre of finger travel
+        self.scroll_mm_per_step = scroll_mm_per_step
+        self.natural_scroll = natural_scroll
+        self.tap_to_click = tap_to_click
+        self.reset()
+
+    def reset(self) -> None:
+        self._touching = False
+        self._was_touching = False
+        self._tools: set[int] = set()
+        self._x = self._y = None
+        self._last = None
+        self._last_fingers = 0
+        self._frac_x = self._frac_y = 0.0
+        self._scroll_mm = 0.0
+        self._tap_start = 0.0
+        self._tap_fingers = 0
+        self._travel_mm = 0.0
+        self._clicked = False
+        self._click_button: int | None = None
+
+    # -- event inputs ---------------------------------------------------------
+    def set_touch(self, touching: bool) -> None:
+        self._touching = touching
+
+    def set_finger_tool(self, count: int, down: bool) -> None:
+        if down:
+            self._tools.add(count)
+        else:
+            self._tools.discard(count)
+
+    def set_x(self, value: int) -> None:
+        self._x = value
+
+    def set_y(self, value: int) -> None:
+        self._y = value
+
+    @property
+    def fingers(self) -> int:
+        return max(self._tools) if self._tools else (1 if self._touching else 0)
+
+    def set_click(self, pressed: bool) -> None:
+        """Physical clickpad press (BTN_LEFT on a clickpad)."""
+        if pressed:
+            self._clicked = True
+            self._click_button = 1 if self.fingers >= 2 else 0
+            self.reports.set_button(self._click_button, True)
+        elif self._click_button is not None:
+            self.reports.set_button(self._click_button, False)
+            self._click_button = None
+
+    def sync(self, timestamp: float) -> None:
+        """Process one complete frame (EV_SYN/SYN_REPORT)."""
+        fingers = self.fingers if self._touching else 0
+        if fingers:
+            if not self._was_touching:
+                self._tap_start = timestamp
+                self._tap_fingers = 0
+                self._travel_mm = 0.0
+                self._clicked = self._click_button is not None
+                self._last = None
+            if fingers != self._last_fingers:
+                self._last = None  # finger count changed: avoid a jump
+                self._scroll_mm = 0.0
+            self._tap_fingers = max(self._tap_fingers, fingers)
+            if self._x is not None and self._y is not None:
+                if self._last is not None:
+                    self._move(fingers, self._x - self._last[0], self._y - self._last[1])
+                self._last = (self._x, self._y)
+        elif self._was_touching:
+            self._finish_touch(timestamp)
+        self._was_touching = bool(fingers)
+        self._last_fingers = fingers
+
+    # -- internal -------------------------------------------------------------
+    def _move(self, fingers: int, du: int, dv: int) -> None:
+        dx_mm, dy_mm = du / self.upmm_x, dv / self.upmm_y
+        self._travel_mm += abs(dx_mm) + abs(dy_mm)
+        if fingers == 1:
+            self._frac_x += dx_mm * self.speed
+            self._frac_y += dy_mm * self.speed
+            dx, dy = int(self._frac_x), int(self._frac_y)
+            self._frac_x -= dx
+            self._frac_y -= dy
+            if dx or dy:
+                self.reports.add_motion(dx=dx, dy=dy)
+        elif fingers == 2:
+            self._scroll_mm += dy_mm
+            steps = int(self._scroll_mm / self.scroll_mm_per_step)
+            if steps:
+                self._scroll_mm -= steps * self.scroll_mm_per_step
+                # Linux/HID wheel: positive scrolls up. Natural scrolling moves
+                # content with the fingers, so fingers down = scroll up.
+                self.reports.add_motion(wheel=steps if self.natural_scroll else -steps)
+
+    def _finish_touch(self, timestamp: float) -> None:
+        is_tap = (self.tap_to_click and not self._clicked
+                  and timestamp - self._tap_start <= self.TAP_MAX_SECONDS
+                  and self._travel_mm <= self.TAP_MAX_TRAVEL_MM)
+        if is_tap:
+            button = {1: 0, 2: 1, 3: 2}.get(self._tap_fingers)
+            if button is not None:
+                self.reports.set_button(button, True)
+                self.reports.set_button(button, False)
+        self._last = None
+        self._frac_x = self._frac_y = 0.0
+        self._scroll_mm = 0.0

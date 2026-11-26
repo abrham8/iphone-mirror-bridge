@@ -19,11 +19,13 @@ from evdev import InputDevice, ecodes, list_devices
 from gi.repository import GLib
 
 from ble_hid import BleHid, adapter_provides_device_info, find_adapter
-from hid_report import HotkeyDetector, ReportAccumulator
+from hid_report import HotkeyDetector, ReportAccumulator, TouchpadTranslator
 
 LOG = logging.getLogger("mouse-bridge")
 FLUSH_INTERVAL_MS = 8
 BUTTONS = {ecodes.BTN_LEFT: 0, ecodes.BTN_RIGHT: 1, ecodes.BTN_MIDDLE: 2}
+FINGER_TOOLS = {ecodes.BTN_TOOL_FINGER: 1, ecodes.BTN_TOOL_DOUBLETAP: 2, ecodes.BTN_TOOL_TRIPLETAP: 3,
+                ecodes.BTN_TOOL_QUADTAP: 4, ecodes.BTN_TOOL_QUINTTAP: 5}
 
 
 # -- input device discovery --------------------------------------------------
@@ -35,41 +37,71 @@ def device_is_mouse(device: InputDevice) -> bool:
             and ecodes.BTN_LEFT in keys and ecodes.BTN_RIGHT in keys)
 
 
+def device_is_touchpad(device: InputDevice) -> bool:
+    caps = device.capabilities(absinfo=False)
+    absolute = set(caps.get(ecodes.EV_ABS, []))
+    keys = set(caps.get(ecodes.EV_KEY, []))
+    try:
+        direct = ecodes.INPUT_PROP_DIRECT in device.input_props()  # touchscreens
+    except (AttributeError, OSError):
+        direct = False
+    return (ecodes.ABS_X in absolute and ecodes.ABS_Y in absolute
+            and ecodes.BTN_TOUCH in keys and ecodes.BTN_TOOL_FINGER in keys and not direct)
+
+
 def device_is_keyboard(device: InputDevice) -> bool:
     keys = set(device.capabilities(absinfo=False).get(ecodes.EV_KEY, []))
     return ecodes.KEY_F8 in keys and (ecodes.KEY_LEFTCTRL in keys or ecodes.KEY_RIGHTCTRL in keys)
 
 
-def find_mouse_device(path: str | None = None) -> InputDevice:
-    """Open the requested mouse or select the first plausible physical mouse."""
+def find_mouse_device(path: str | None = None, touchpad: bool = False) -> InputDevice:
+    """Open the requested pointing device or auto-select one.
+
+    An explicit path may be a mouse or a touchpad. Without a path, the first
+    physical mouse is chosen, or the first touchpad when touchpad=True.
+    """
     if path:
         device = InputDevice(path)
-        if not device_is_mouse(device):
+        if not (device_is_mouse(device) or device_is_touchpad(device)):
             device.close()
-            raise RuntimeError(f"{path} does not expose REL_X/REL_Y and mouse buttons")
-        LOG.info("Using mouse: %s (%s)", device.path, device.name)
+            raise RuntimeError(f"{path} is neither a mouse (REL_X/REL_Y + buttons) nor a touchpad")
+        LOG.info("Using %s: %s (%s)", "touchpad" if device_is_touchpad(device) else "mouse",
+                 device.path, device.name)
         return device
 
+    kind = "touchpad" if touchpad else "mouse"
+    matches = device_is_touchpad if touchpad else device_is_mouse
     candidates: list[InputDevice] = []
     for candidate_path in sorted(list_devices()):
         try:
             device = InputDevice(candidate_path)
         except OSError:
             continue
-        if device_is_mouse(device) and not device.name.lower().startswith(("virtual", "uinput")):
+        if matches(device) and not device.name.lower().startswith(("virtual", "uinput")):
             candidates.append(device)
         else:
             device.close()
     if not candidates:
-        raise RuntimeError("No readable physical mouse found. Run as root or use --device /dev/input/eventN.")
+        raise RuntimeError(f"No readable {kind} found. Run as root or use --device /dev/input/eventN.")
     if len(candidates) > 1:
-        LOG.warning("Multiple mice found (%s); selecting %s. Use --device to choose explicitly.",
+        LOG.warning("Multiple %ss found (%s); selecting %s. Use --device to choose explicitly.", kind,
                     ", ".join(f"{d.path} {d.name!r}" for d in candidates), candidates[0].path)
     selected = candidates[0]
     for extra in candidates[1:]:
         extra.close()
-    LOG.info("Using mouse: %s (%s)", selected.path, selected.name)
+    LOG.info("Using %s: %s (%s)", kind, selected.path, selected.name)
     return selected
+
+
+def make_touchpad_translator(device: InputDevice, reports: ReportAccumulator, args) -> TouchpadTranslator:
+    def units_per_mm(code):
+        info = device.absinfo(code)
+        if info.resolution:
+            return float(info.resolution)
+        return max(1.0, (info.max - info.min) / 100.0)  # assume a ~100 mm wide pad
+    return TouchpadTranslator(reports, units_per_mm(ecodes.ABS_X), units_per_mm(ecodes.ABS_Y),
+                              speed=args.touchpad_speed, natural_scroll=not args.reverse_scroll,
+                              tap_to_click=not args.no_tap)
 
 
 def find_keyboards(path: str | None = None, exclude: Iterable[str] = ()) -> list[InputDevice]:
@@ -100,10 +132,12 @@ def find_keyboards(path: str | None = None, exclude: Iterable[str] = ()) -> list
 class BridgeController:
     """Owns the phone/laptop mode, the evdev grab and the pending HID reports."""
 
-    def __init__(self, mouse: InputDevice, grab: bool = True):
+    def __init__(self, mouse: InputDevice, grab: bool = True, reports: ReportAccumulator | None = None,
+                 touchpad: TouchpadTranslator | None = None):
         self.mouse = mouse
         self.grab_enabled = grab
-        self.reports = ReportAccumulator()
+        self.reports = reports or ReportAccumulator()
+        self.touchpad = touchpad
         self._lock = threading.Lock()
         self._active = False
         self._grabbed = False
@@ -132,6 +166,8 @@ class BridgeController:
                     LOG.error("Could not grab the mouse (%s); staying in laptop mode", exc)
                     return
             self.reports.clear()
+            if self.touchpad:
+                self.touchpad.reset()
             self._active = True
             LOG.info("iPhone control mode (Ctrl+F8 to return)")
         else:
@@ -152,6 +188,9 @@ class BridgeController:
     def handle_event(self, event) -> None:
         if not self._active:
             return
+        if self.touchpad is not None:
+            self._handle_touchpad_event(event)
+            return
         if event.type == ecodes.EV_REL:
             if event.code == ecodes.REL_X:
                 self.reports.add_motion(dx=event.value)
@@ -161,6 +200,25 @@ class BridgeController:
                 self.reports.add_motion(wheel=event.value)
         elif event.type == ecodes.EV_KEY and event.code in BUTTONS and event.value in (0, 1):
             self.reports.set_button(BUTTONS[event.code], bool(event.value))
+
+    def _handle_touchpad_event(self, event) -> None:
+        pad = self.touchpad
+        if event.type == ecodes.EV_ABS:
+            if event.code == ecodes.ABS_X:
+                pad.set_x(event.value)
+            elif event.code == ecodes.ABS_Y:
+                pad.set_y(event.value)
+        elif event.type == ecodes.EV_KEY and event.value in (0, 1):
+            if event.code == ecodes.BTN_TOUCH:
+                pad.set_touch(bool(event.value))
+            elif event.code in FINGER_TOOLS:
+                pad.set_finger_tool(FINGER_TOOLS[event.code], bool(event.value))
+            elif event.code == ecodes.BTN_LEFT:
+                pad.set_click(bool(event.value))
+            elif event.code in (ecodes.BTN_RIGHT, ecodes.BTN_MIDDLE):
+                self.reports.set_button(BUTTONS[event.code], bool(event.value))
+        elif event.type == ecodes.EV_SYN and event.code == ecodes.SYN_REPORT:
+            pad.sync(event.timestamp())
 
     def shutdown(self) -> None:
         with self._lock:
@@ -203,7 +261,14 @@ def capture_mouse(controller: BridgeController, stop: threading.Event, on_failur
 # -- main --------------------------------------------------------------------
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--device", help="Mouse /dev/input/eventN (auto-detected if omitted)")
+    parser.add_argument("--device", help="Mouse or touchpad /dev/input/eventN (auto-detected if omitted)")
+    parser.add_argument("--touchpad", action="store_true",
+                        help="Auto-select the built-in touchpad instead of a mouse")
+    parser.add_argument("--touchpad-speed", type=float, default=12.0,
+                        help="Touchpad pointer speed in counts per mm (default 12)")
+    parser.add_argument("--reverse-scroll", action="store_true",
+                        help="Touchpad: traditional instead of natural two-finger scrolling")
+    parser.add_argument("--no-tap", action="store_true", help="Touchpad: disable tap-to-click")
     parser.add_argument("--adapter", help="Bluetooth adapter, e.g. hci0 or /org/bluez/hci0 (auto-detected)")
     parser.add_argument("--name", default="iPhone Mirror Bridge", help="BLE advertised name")
     parser.add_argument("--hotkey-device", help="Keyboard /dev/input/eventN for the Ctrl+F8 toggle")
@@ -228,7 +293,7 @@ def main(argv=None) -> int:
         bus = dbus.SystemBus()
         adapter = find_adapter(bus, args.adapter)
         LOG.info("Using Bluetooth adapter %s", adapter)
-        mouse = find_mouse_device(args.device)
+        mouse = find_mouse_device(args.device, touchpad=args.touchpad)
         keyboards = find_keyboards(args.hotkey_device, exclude=[mouse.path])
     except (RuntimeError, OSError, dbus.DBusException) as exc:
         LOG.error("%s", exc)
@@ -241,7 +306,11 @@ def main(argv=None) -> int:
         LOG.info("bluetoothd already provides a Device Information service; not adding another")
         include_device_info = False
 
-    controller = BridgeController(mouse, grab=not args.no_grab)
+    reports = ReportAccumulator()
+    touchpad = make_touchpad_translator(mouse, reports, args) if device_is_touchpad(mouse) else None
+    if touchpad:
+        LOG.info("Touchpad mode: one finger moves, tap/press clicks, two fingers scroll or right-click")
+    controller = BridgeController(mouse, grab=not args.no_grab, reports=reports, touchpad=touchpad)
     ble = BleHid(bus, adapter, args.name, use_agent=not args.no_agent,
                  include_device_info=include_device_info)
     stop = threading.Event()

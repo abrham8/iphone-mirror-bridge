@@ -9,6 +9,7 @@ Early hardware-integration project. The mouse bridge is implemented and covered 
 | Component | Status |
 |---|---|
 | evdev mouse discovery and event parsing | Implemented; hardware testing needed |
+| Laptop touchpad (move, tap, click, two-finger scroll) | Implemented; hardware testing needed |
 | HID mouse report descriptor and encoding | Implemented; descriptor validation needed |
 | BlueZ GATT HID service and advertisement | Implemented; tested against fake BlueZ; real BlueZ/iOS testing needed |
 | Pairing agent (Just Works, auto-trust) | Implemented; iOS testing needed |
@@ -26,7 +27,7 @@ sudo python3 scripts/mouse_bridge.py --debug
 
 To help with hardware testing, run `sudo scripts/check_host.sh` and follow [Hardware validation](docs/HARDWARE_VALIDATION.md).
 
-Enable **Settings → Accessibility → Touch → AssistiveTouch** on the iPhone, then pair with **iPhone Mirror Bridge**. Ctrl+F8 switches between laptop and phone control. The default mode is laptop control; use `--start-active` to start in phone mode. Use `--device /dev/input/eventN` and `--hotkey-device /dev/input/eventM` to select devices explicitly.
+Enable **Settings → Accessibility → Touch → AssistiveTouch** on the iPhone, then pair with **iPhone Mirror Bridge**. Ctrl+F8 switches between laptop and phone control. The default mode is laptop control; use `--start-active` to start in phone mode. Use `--device /dev/input/eventN` and `--hotkey-device /dev/input/eventM` to select devices explicitly. To use a laptop touchpad, pass `--touchpad` (or `--device` with the touchpad's event node).
 
 > Warning: phone mode grabs the mouse from the local desktop. Keep a keyboard available. Ctrl+C or SIGTERM releases the mouse.
 

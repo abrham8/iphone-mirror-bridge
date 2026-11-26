@@ -37,6 +37,7 @@ class SimulatedMouse:
         pass
 
 
-mouse_bridge.find_mouse_device = lambda path=None: SimulatedMouse()
+mouse_bridge.find_mouse_device = lambda path=None, touchpad=False: SimulatedMouse()
+mouse_bridge.device_is_touchpad = lambda device: False
 mouse_bridge.find_keyboards = lambda path=None, exclude=(): []
 sys.exit(mouse_bridge.main(sys.argv[1:]))

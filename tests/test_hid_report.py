@@ -3,7 +3,7 @@ from pathlib import Path
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from hid_report import HotkeyDetector, MouseState, ReportAccumulator, build_hid_report
+from hid_report import HotkeyDetector, MouseState, ReportAccumulator, TouchpadTranslator, build_hid_report
 
 
 def decode(report):
@@ -123,6 +123,110 @@ class HotkeyDetectorTests(unittest.TestCase):
         self.assertTrue(self.det.feed(self.F8, 1))
         self.det.feed(self.RCTRL, 0)
         self.assertFalse(self.det.feed(self.F8, 1))
+
+
+class TouchpadTranslatorTests(unittest.TestCase):
+    """Device units are 10 per mm; speed 10 counts/mm => 1 count per unit."""
+
+    def setUp(self):
+        self.acc = ReportAccumulator(max_motion_reports_per_drain=100)
+        self.pad = TouchpadTranslator(self.acc, 10, 10, speed=10, scroll_mm_per_step=2.5)
+        self.t = 0.0
+
+    def frame(self, x=None, y=None, dt=0.01):
+        if x is not None:
+            self.pad.set_x(x)
+        if y is not None:
+            self.pad.set_y(y)
+        self.t += dt
+        self.pad.sync(self.t)
+
+    def touch(self, fingers=1, x=100, y=100):
+        self.pad.set_touch(True)
+        self.pad.set_finger_tool(fingers, True)
+        self.frame(x, y)
+
+    def lift(self, fingers=1, dt=0.01):
+        self.pad.set_touch(False)
+        self.pad.set_finger_tool(fingers, False)
+        self.frame(dt=dt)
+
+    def reports(self):
+        return [decode(r) for r in self.acc.drain()]
+
+    def test_one_finger_moves_without_initial_jump(self):
+        self.touch(x=500, y=500)
+        self.frame(x=530, y=480)
+        self.frame(x=540)
+        self.assertEqual(self.reports(), [(0, 40, -20, 0)])
+
+    def test_fractional_motion_is_kept(self):
+        self.pad.speed = 5  # 0.5 counts per unit
+        self.touch()
+        for x in (101, 102, 103, 104):
+            self.frame(x=x)
+        self.assertEqual(sum(r[1] for r in self.reports()), 2)
+
+    def test_tap_clicks_left(self):
+        self.touch()
+        self.lift()
+        self.assertEqual(self.reports(), [(1, 0, 0, 0), (0, 0, 0, 0)])
+
+    def test_two_finger_tap_clicks_right(self):
+        self.touch(fingers=2)
+        self.lift(fingers=2)
+        self.assertEqual(self.reports(), [(2, 0, 0, 0), (0, 0, 0, 0)])
+
+    def test_slow_touch_or_movement_is_not_a_tap(self):
+        self.touch()
+        self.lift(dt=0.5)
+        self.touch()
+        self.frame(x=200)
+        self.lift()
+        self.assertEqual([r for r in self.reports() if r[0]], [])
+
+    def test_tap_can_be_disabled(self):
+        self.pad.tap_to_click = False
+        self.touch()
+        self.lift()
+        self.assertEqual(self.reports(), [])
+
+    def test_two_finger_natural_scroll(self):
+        self.touch(fingers=2, y=100)
+        self.frame(y=150)  # fingers down 5 mm => 2 steps up (natural)
+        self.assertEqual(self.reports(), [(0, 0, 0, 2)])
+        self.pad.natural_scroll = False
+        self.frame(y=200)
+        self.assertEqual(self.reports(), [(0, 0, 0, -2)])
+
+    def test_finger_count_change_does_not_jump(self):
+        self.touch(fingers=1, x=100)
+        self.pad.set_finger_tool(1, False)
+        self.pad.set_finger_tool(2, True)
+        self.frame(x=900)  # second finger lands: single-touch position may jump
+        self.frame(x=900)
+        self.assertEqual(self.reports(), [])
+
+    def test_clickpad_press_left_and_two_finger_press_right(self):
+        self.touch()
+        self.pad.set_click(True)
+        self.frame()
+        self.pad.set_click(False)
+        self.lift()
+        self.assertEqual(self.reports(), [(1, 0, 0, 0), (0, 0, 0, 0)])  # no extra tap click
+        self.touch(fingers=2)
+        self.pad.set_click(True)
+        self.pad.set_click(False)
+        self.lift(fingers=2)
+        self.assertEqual(self.reports(), [(2, 0, 0, 0), (0, 0, 0, 0)])
+
+    def test_click_and_drag(self):
+        self.touch(x=100)
+        self.pad.set_click(True)
+        self.frame(x=120, dt=0.3)
+        self.pad.set_click(False)
+        self.lift()
+        self.assertEqual(self.reports(), [(1, 0, 0, 0), (1, 20, 0, 0), (0, 0, 0, 0)])
 
 
 if __name__ == "__main__":

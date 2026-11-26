@@ -102,11 +102,34 @@ class BridgeControllerTests(unittest.TestCase):
         self.ctl.toggle()
         self.assertEqual(self.ctl.reports.drain(), [])
 
+    def test_touchpad_events_are_translated(self):
+        from hid_report import ReportAccumulator, TouchpadTranslator
+        reports = ReportAccumulator()
+        pad = TouchpadTranslator(reports, 10, 10, speed=10)
+        ctl = mouse_bridge.BridgeController(FakeMouse(), reports=reports, touchpad=pad)
+        ctl.toggle()
+
+        class Ev(namedtuple("Ev", "type code value t")):
+            def timestamp(self):
+                return self.t
+
+        for ev in [Ev(ecodes.EV_KEY, ecodes.BTN_TOUCH, 1, 0), Ev(ecodes.EV_KEY, ecodes.BTN_TOOL_FINGER, 1, 0),
+                   Ev(ecodes.EV_ABS, ecodes.ABS_X, 100, 0), Ev(ecodes.EV_ABS, ecodes.ABS_Y, 100, 0),
+                   Ev(ecodes.EV_SYN, ecodes.SYN_REPORT, 0, 0.0),
+                   Ev(ecodes.EV_ABS, ecodes.ABS_X, 130, 0), Ev(ecodes.EV_SYN, ecodes.SYN_REPORT, 0, 0.5),
+                   Ev(ecodes.EV_KEY, ecodes.BTN_TOUCH, 0, 0), Ev(ecodes.EV_KEY, ecodes.BTN_TOOL_FINGER, 0, 0),
+                   Ev(ecodes.EV_SYN, ecodes.SYN_REPORT, 0, 0.6)]:
+            ctl.handle_event(ev)
+        self.assertEqual(reports.drain(), [bytes([0, 30, 0, 0])])  # moved; too slow for a tap
+
     def test_argument_parsing(self):
         args = mouse_bridge.parse_args(["--adapter", "hci1", "--no-agent", "--start-active"])
         self.assertEqual(args.adapter, "hci1")
         self.assertTrue(args.no_agent and args.start_active)
         self.assertEqual(args.name, "iPhone Mirror Bridge")
+        args = mouse_bridge.parse_args(["--touchpad", "--touchpad-speed", "20", "--reverse-scroll", "--no-tap"])
+        self.assertTrue(args.touchpad and args.reverse_scroll and args.no_tap)
+        self.assertEqual(args.touchpad_speed, 20.0)
 
 
 if __name__ == "__main__":
