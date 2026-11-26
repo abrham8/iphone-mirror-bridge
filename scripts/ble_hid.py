@@ -450,6 +450,37 @@ def adapter_provides_device_info(bus, adapter_path: str) -> bool:
     return DEVICE_INFO_UUID in {str(u).lower() for u in uuids}
 
 
+DEBUGFS_BLUETOOTH = "/sys/kernel/debug/bluetooth"
+
+
+def set_le_connection_interval(hci: str, min_units: int, max_units: int,
+                               base: str = DEBUGFS_BLUETOOTH) -> tuple[int, int] | None:
+    """Set the kernel's preferred LE connection interval (units of 1.25 ms).
+
+    As a peripheral, Linux asks the central (the iPhone) to move the link into
+    this range; the kernel default of 30-50 ms makes a pointer feel laggy.
+    Returns the previous (min, max) so it can be restored, or None if the
+    debugfs files are unavailable (not root, debugfs not mounted).
+    """
+    from pathlib import Path
+    folder = Path(base) / hci
+    min_file, max_file = folder / "conn_min_interval", folder / "conn_max_interval"
+    try:
+        old = (int(min_file.read_text().strip()), int(max_file.read_text().strip()))
+        # Keep min <= max at every step: lowering min first is always valid.
+        if min_units < old[1]:
+            min_file.write_text(str(min_units))
+            max_file.write_text(str(max_units))
+        else:
+            max_file.write_text(str(max_units))
+            min_file.write_text(str(min_units))
+        return old
+    except (OSError, ValueError) as exc:
+        LOG.warning("Could not set the LE connection interval via %s (%s). "
+                    "Pointer latency may be higher; see docs/BACKEND_SETUP.md.", folder, exc)
+        return None
+
+
 class BleHid:
     """Registers the GATT app, advertisement and agent with BlueZ."""
 

@@ -19,11 +19,13 @@ import dbus.mainloop.glib
 from evdev import InputDevice, ecodes, list_devices
 from gi.repository import GLib
 
-from ble_hid import BleHid, adapter_provides_device_info, find_adapter
+from ble_hid import BleHid, adapter_provides_device_info, find_adapter, set_le_connection_interval
 from hid_report import HotkeyDetector, ReportAccumulator, TouchpadTranslator
 
 LOG = logging.getLogger("mouse-bridge")
-FLUSH_INTERVAL_MS = 8
+DEFAULT_REPORT_INTERVAL_MS = 15
+# Preferred LE connection interval in 1.25 ms units: 15-30 ms (Apple HID guidelines).
+CONN_INTERVAL_MIN, CONN_INTERVAL_MAX = 12, 24
 BUTTONS = {ecodes.BTN_LEFT: 0, ecodes.BTN_RIGHT: 1, ecodes.BTN_MIDDLE: 2}
 FINGER_TOOLS = {ecodes.BTN_TOOL_FINGER: 1, ecodes.BTN_TOOL_DOUBLETAP: 2, ecodes.BTN_TOOL_TRIPLETAP: 3,
                 ecodes.BTN_TOOL_QUADTAP: 4, ecodes.BTN_TOOL_QUINTTAP: 5}
@@ -317,6 +319,11 @@ def parse_args(argv=None):
                         help="Do not register the built-in auto-accept pairing agent")
     parser.add_argument("--no-device-info", action="store_true",
                         help="Omit the Device Information service (if bluetoothd already provides one)")
+    parser.add_argument("--report-interval", type=int, default=DEFAULT_REPORT_INTERVAL_MS,
+                        help="Milliseconds between HID reports; movement in between is combined "
+                             f"(default {DEFAULT_REPORT_INTERVAL_MS})")
+    parser.add_argument("--keep-conn-interval", action="store_true",
+                        help="Do not request a faster Bluetooth LE connection interval")
     parser.add_argument("--debug", action="store_true")
     return parser.parse_args(argv)
 
@@ -356,6 +363,16 @@ def main(argv=None) -> int:
     if touchpad:
         LOG.info("Touchpad mode: one finger moves, tap/press clicks, two fingers scroll or right-click")
     controller = BridgeController(mouse, grab=not args.no_grab, reports=reports, touchpad=touchpad)
+    hci = adapter.rsplit("/", 1)[-1]
+    old_interval = None
+    if not args.keep_conn_interval:
+        old_interval = set_le_connection_interval(hci, CONN_INTERVAL_MIN, CONN_INTERVAL_MAX)
+        if old_interval:
+            LOG.info("Requested LE connection interval %.2f-%.2f ms (was %.2f-%.2f ms). "
+                     "Reconnect the iPhone if it was already connected.",
+                     CONN_INTERVAL_MIN * 1.25, CONN_INTERVAL_MAX * 1.25,
+                     old_interval[0] * 1.25, old_interval[1] * 1.25)
+
     ble = BleHid(bus, adapter, args.name, use_agent=not args.no_agent,
                  include_device_info=include_device_info)
     stop = threading.Event()
@@ -392,6 +409,8 @@ def main(argv=None) -> int:
         controller.shutdown()
         flush()  # deliver the final button-release report
         ble.stop()
+        if old_interval:
+            set_le_connection_interval(hci, *old_interval)
         loop.quit()
         return False
 
@@ -405,9 +424,11 @@ def main(argv=None) -> int:
         ble.start()
     except dbus.DBusException as exc:
         LOG.error("BlueZ setup failed: %s", exc)
+        if old_interval:
+            set_le_connection_interval(hci, *old_interval)
         return 1
 
-    GLib.timeout_add(FLUSH_INTERVAL_MS, flush)
+    GLib.timeout_add(max(1, args.report_interval), flush)
     GLib.timeout_add(250, monitor_ble)
     for signum in (signal.SIGINT, signal.SIGTERM):
         GLib.unix_signal_add(GLib.PRIORITY_HIGH, signum, shutdown)

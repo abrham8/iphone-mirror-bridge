@@ -140,6 +140,24 @@ class BridgeControllerTests(unittest.TestCase):
         ranked = sorted([receiver, builtin], key=mouse_bridge.touchpad_score, reverse=True)
         self.assertIs(ranked[0], builtin)
 
+    def test_le_connection_interval_set_and_restore(self):
+        import tempfile
+        from pathlib import Path
+        import ble_hid
+        with tempfile.TemporaryDirectory() as base:
+            folder = Path(base) / "hci0"
+            folder.mkdir()
+            (folder / "conn_min_interval").write_text("24\n")
+            (folder / "conn_max_interval").write_text("40\n")
+            old = ble_hid.set_le_connection_interval("hci0", 12, 24, base=base)
+            self.assertEqual(old, (24, 40))
+            self.assertEqual((folder / "conn_min_interval").read_text(), "12")
+            self.assertEqual((folder / "conn_max_interval").read_text(), "24")
+            ble_hid.set_le_connection_interval("hci0", *old, base=base)
+            self.assertEqual((folder / "conn_max_interval").read_text(), "40")
+            with self.assertLogs("mouse-bridge.ble", "WARNING"):
+                self.assertIsNone(ble_hid.set_le_connection_interval("hci9", 12, 24, base=base))
+
     def test_argument_parsing(self):
         args = mouse_bridge.parse_args(["--adapter", "hci1", "--no-agent", "--start-active"])
         self.assertEqual(args.adapter, "hci1")

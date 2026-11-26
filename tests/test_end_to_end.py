@@ -30,7 +30,7 @@ class EndToEndTests(unittest.TestCase):
     def setUp(self):
         env = dict(os.environ, DBUS_SYSTEM_BUS_ADDRESS=self.address)
         self.bridge = subprocess.Popen(
-            [sys.executable, str(HERE / "run_bridge_with_fake_mouse.py"), "--start-active", "--debug"],
+            [sys.executable, str(HERE / "run_bridge_with_fake_mouse.py"), "--start-active", "--debug", "--keep-conn-interval"],
             env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         self.addCleanup(self._stop_process, self.bridge)
 

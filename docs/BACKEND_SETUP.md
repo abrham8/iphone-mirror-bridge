@@ -98,6 +98,20 @@ One finger moves the pointer, tapping clicks (two-finger tap = right click), pre
 
 Use `--start-active` to start in phone mode. Keep a keyboard available: phone mode grabs the mouse from the local desktop.
 
+## Pointer latency
+
+The iPhone decides how often it exchanges data with the bridge (the LE connection interval). As a peripheral, Linux asks it for 30-50 ms by default, which makes the pointer lag. While running, the bridge asks for 15-30 ms by writing `/sys/kernel/debug/bluetooth/hciN/conn_min_interval` and `conn_max_interval` (root only; restored on exit). The request is made when the iPhone connects, so start the bridge before the iPhone reconnects.
+
+If the log says it could not set the interval, set it permanently in `/etc/bluetooth/main.conf` instead, then `sudo systemctl restart bluetooth`:
+
+```ini
+[LE]
+MinConnectionInterval=12
+MaxConnectionInterval=24
+```
+
+Values are in 1.25 ms units. `--report-interval 15` controls how often the bridge sends combined movement (lower = smoother but can queue up on a slow link). To check the actual interval, run `sudo btmon` while the iPhone connects and look for "Connection interval" in "LE Connection Update Complete".
+
 ## Known risks and troubleshooting
 
 - The D-Bus GATT object model is tested against a fake BlueZ in CI, but still needs validation against the real BlueZ release.
