@@ -11,6 +11,7 @@ import logging
 import signal
 import sys
 import threading
+import time
 from typing import Iterable
 
 import dbus
@@ -49,9 +50,9 @@ def device_is_touchpad(device: InputDevice) -> bool:
             and ecodes.BTN_TOUCH in keys and ecodes.BTN_TOOL_FINGER in keys and not direct)
 
 
-def device_is_keyboard(device: InputDevice) -> bool:
+def device_is_keyboard(device: InputDevice, hotkey: int = ecodes.KEY_F8) -> bool:
     keys = set(device.capabilities(absinfo=False).get(ecodes.EV_KEY, []))
-    return ecodes.KEY_F8 in keys and (ecodes.KEY_LEFTCTRL in keys or ecodes.KEY_RIGHTCTRL in keys)
+    return hotkey in keys and (ecodes.KEY_LEFTCTRL in keys or ecodes.KEY_RIGHTCTRL in keys)
 
 
 def find_mouse_device(path: str | None = None, touchpad: bool = False) -> InputDevice:
@@ -104,7 +105,8 @@ def make_touchpad_translator(device: InputDevice, reports: ReportAccumulator, ar
                               tap_to_click=not args.no_tap)
 
 
-def find_keyboards(path: str | None = None, exclude: Iterable[str] = ()) -> list[InputDevice]:
+def find_keyboards(path: str | None = None, exclude: Iterable[str] = (),
+                   hotkey: int = ecodes.KEY_F8) -> list[InputDevice]:
     excluded = set(exclude)
     found = []
     for p in ([path] if path else sorted(list_devices())):
@@ -116,15 +118,15 @@ def find_keyboards(path: str | None = None, exclude: Iterable[str] = ()) -> list
             if path:
                 raise RuntimeError(f"Cannot open hotkey device {path}: {exc}") from exc
             continue
-        if device_is_keyboard(dev):
+        if device_is_keyboard(dev, hotkey):
             found.append(dev)
         else:
             if path:
                 dev.close()
-                raise RuntimeError(f"{path} has no Ctrl and F8 keys")
+                raise RuntimeError(f"{path} has no Ctrl and {key_name(hotkey)} keys")
             dev.close()
     for dev in found:
-        LOG.info("Listening for Ctrl+F8 on %s (%s)", dev.path, dev.name)
+        LOG.info("Listening for Ctrl+%s on %s (%s)", key_name(hotkey)[4:], dev.path, dev.name)
     return found
 
 
@@ -169,7 +171,7 @@ class BridgeController:
             if self.touchpad:
                 self.touchpad.reset()
             self._active = True
-            LOG.info("iPhone control mode (Ctrl+F8 to return)")
+            LOG.info("iPhone control mode (press the hotkey again to return)")
         else:
             self._active = False
             # Always tell the phone every button is up, even with no further input.
@@ -229,14 +231,24 @@ class BridgeController:
 
 
 # -- worker threads ----------------------------------------------------------
-def listen_hotkeys(devices: Iterable[InputDevice], controller: BridgeController, stop: threading.Event):
+def key_name(code: int) -> str:
+    name = ecodes.KEY.get(code) or ecodes.BTN.get(code) or str(code)
+    return name if isinstance(name, str) else "/".join(name)
+
+
+def listen_hotkeys(devices: Iterable[InputDevice], controller: BridgeController, stop: threading.Event,
+                   hotkey: int = ecodes.KEY_F8):
     def listen(device: InputDevice):
-        detector = HotkeyDetector((ecodes.KEY_LEFTCTRL, ecodes.KEY_RIGHTCTRL), ecodes.KEY_F8)
+        detector = HotkeyDetector((ecodes.KEY_LEFTCTRL, ecodes.KEY_RIGHTCTRL), hotkey)
         try:
             for event in device.read_loop():
                 if stop.is_set():
                     return
-                if event.type == ecodes.EV_KEY and detector.feed(event.code, event.value):
+                if event.type != ecodes.EV_KEY:
+                    continue
+                if event.value == 1 and detector.ctrl_held and event.code not in detector.ctrl_codes:
+                    LOG.debug("Ctrl+%s pressed on %s", key_name(event.code), device.path)
+                if detector.feed(event.code, event.value):
                     controller.toggle()
         except OSError as exc:
             if not stop.is_set():
@@ -272,6 +284,8 @@ def parse_args(argv=None):
     parser.add_argument("--adapter", help="Bluetooth adapter, e.g. hci0 or /org/bluez/hci0 (auto-detected)")
     parser.add_argument("--name", default="iPhone Mirror Bridge", help="BLE advertised name")
     parser.add_argument("--hotkey-device", help="Keyboard /dev/input/eventN for the Ctrl+F8 toggle")
+    parser.add_argument("--hotkey", default="F8",
+                        help="Key used with Ctrl to switch modes, e.g. F8, F12, M (default F8)")
     parser.add_argument("--start-active", action="store_true", help="Start with the mouse routed to the iPhone")
     parser.add_argument("--no-grab", action="store_true", help="Do not exclusively grab the local mouse")
     parser.add_argument("--no-agent", action="store_true",
@@ -289,17 +303,23 @@ def main(argv=None) -> int:
 
     dbus.mainloop.glib.threads_init()
     dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+    hotkey = ecodes.ecodes.get("KEY_" + args.hotkey.upper())
+    if hotkey is None:
+        LOG.error("Unknown --hotkey %r (examples: F8, F12, M, SPACE)", args.hotkey)
+        return 2
+    hotkey_label = "Ctrl+" + args.hotkey.upper()
     try:
         bus = dbus.SystemBus()
         adapter = find_adapter(bus, args.adapter)
         LOG.info("Using Bluetooth adapter %s", adapter)
         mouse = find_mouse_device(args.device, touchpad=args.touchpad)
-        keyboards = find_keyboards(args.hotkey_device, exclude=[mouse.path])
+        keyboards = find_keyboards(args.hotkey_device, exclude=[mouse.path], hotkey=hotkey)
     except (RuntimeError, OSError, dbus.DBusException) as exc:
         LOG.error("%s", exc)
         return 2
     if not keyboards:
-        LOG.warning("No keyboard with Ctrl+F8 found; mode switching is unavailable. Use --hotkey-device.")
+        LOG.warning("No keyboard with %s found; mode switching is unavailable. Use --hotkey-device.",
+                    hotkey_label)
 
     include_device_info = not args.no_device_info
     if include_device_info and adapter_provides_device_info(bus, adapter):
@@ -317,11 +337,25 @@ def main(argv=None) -> int:
     loop = GLib.MainLoop()
     exit_code = 0
 
+    stats = {"sent": 0, "dropped": 0, "since": time.monotonic(), "warned": 0.0}
+
     def flush() -> bool:
         reports = controller.reports.drain()
-        if ble.subscribed:
-            for report in reports:
-                ble.send(report)
+        now = time.monotonic()
+        if reports:
+            if ble.subscribed:
+                for report in reports:
+                    ble.send(report)
+                stats["sent"] += len(reports)
+            else:
+                stats["dropped"] += len(reports)
+                if now - stats["warned"] > 5:
+                    stats["warned"] = now
+                    LOG.warning("Input is being discarded: the iPhone is not subscribed to mouse reports "
+                                "(not connected, or not paired yet)")
+        if now - stats["since"] >= 2 and (stats["sent"] or stats["dropped"]):
+            LOG.debug("Last 2 s: %d reports sent to iPhone, %d discarded", stats["sent"], stats["dropped"])
+            stats.update(sent=0, dropped=0, since=now)
         return not stop.is_set()
 
     def shutdown(code: int = 0) -> bool:
@@ -353,11 +387,13 @@ def main(argv=None) -> int:
     for signum in (signal.SIGINT, signal.SIGTERM):
         GLib.unix_signal_add(GLib.PRIORITY_HIGH, signum, shutdown)
 
-    listen_hotkeys(keyboards, controller, stop)
+    listen_hotkeys(keyboards, controller, stop, hotkey)
     threading.Thread(target=capture_mouse, name="mouse", daemon=True,
                      args=(controller, stop, lambda: GLib.idle_add(shutdown, 1))).start()
     if args.start_active:
         controller.set_active(True)
+    else:
+        LOG.info("Laptop control mode. Press %s to control the iPhone.", hotkey_label)
 
     try:
         loop.run()

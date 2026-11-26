@@ -130,6 +130,7 @@ class BridgeControllerTests(unittest.TestCase):
         args = mouse_bridge.parse_args(["--touchpad", "--touchpad-speed", "20", "--reverse-scroll", "--no-tap"])
         self.assertTrue(args.touchpad and args.reverse_scroll and args.no_tap)
         self.assertEqual(args.touchpad_speed, 20.0)
+        self.assertEqual(mouse_bridge.parse_args([]).hotkey, "F8")
 
 
 if __name__ == "__main__":

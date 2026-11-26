@@ -129,6 +129,10 @@ class HotkeyDetector:
         self.trigger_code = trigger_code
         self._held: set[int] = set()
 
+    @property
+    def ctrl_held(self) -> bool:
+        return bool(self._held)
+
     def feed(self, code: int, value: int) -> bool:
         """Feed one EV_KEY event; return True when the hotkey fires.
 

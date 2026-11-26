@@ -27,7 +27,7 @@ sudo python3 scripts/mouse_bridge.py --debug
 
 To help with hardware testing, run `sudo scripts/check_host.sh` and follow [Hardware validation](docs/HARDWARE_VALIDATION.md).
 
-Enable **Settings → Accessibility → Touch → AssistiveTouch** on the iPhone, then pair with **iPhone Mirror Bridge**. Ctrl+F8 switches between laptop and phone control. The default mode is laptop control; use `--start-active` to start in phone mode. Use `--device /dev/input/eventN` and `--hotkey-device /dev/input/eventM` to select devices explicitly. To use a laptop touchpad, pass `--touchpad` (or `--device` with the touchpad's event node).
+Enable **Settings → Accessibility → Touch → AssistiveTouch** on the iPhone, then pair with **iPhone Mirror Bridge**. Ctrl+F8 switches between laptop and phone control (change the key with `--hotkey F12`). The default mode is laptop control; use `--start-active` to start in phone mode. Use `--device /dev/input/eventN` and `--hotkey-device /dev/input/eventM` to select devices explicitly. To use a laptop touchpad, pass `--touchpad` (or `--device` with the touchpad's event node).
 
 > Warning: phone mode grabs the mouse from the local desktop. Keep a keyboard available. Ctrl+C or SIGTERM releases the mouse.
 
