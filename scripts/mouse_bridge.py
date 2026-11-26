@@ -345,7 +345,8 @@ def find_adapter(bus) -> str:
     objects = manager.GetManagedObjects()
     for path, interfaces in objects.items():
         adapter_props = interfaces.get("org.bluez.Adapter1")
-        if adapter_props and bool(adapter_props.get("Powered", False)):
+        if (adapter_props and bool(adapter_props.get("Powered", False))
+                and GATT_MANAGER in interfaces and LE_ADV_MANAGER in interfaces):
             return str(path)
     raise RuntimeError("No powered Bluetooth adapter found. Enable Bluetooth with bluetoothctl.")
 
