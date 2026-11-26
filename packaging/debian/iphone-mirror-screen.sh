@@ -67,14 +67,15 @@ allow_firewall() {
     notify "Firewall updated" "Devices on this network can now mirror to $NAME."
 }
 
-# Low-latency video options. -vsync no: show frames as they arrive instead of
-# holding them to match the audio. -fps 60: the iPhone's full frame rate.
+# Video options. UxPlay's default timestamp sync is kept: with -vsync no each
+# frame is shown the moment it arrives, so Wi-Fi jitter makes video choppy.
+# -fps 60: the iPhone's full frame rate (UxPlay caps at 30).
 # vah264dec (VA-API, the GPU) is what GStreamer picks anyway, but by default it
 # holds 6-8 frames (~110 ms) of the iPhone's stream for reordering the iPhone
 # never does; compliance=flexible outputs each frame at once. On Wayland,
 # waylandsink shows the GPU frames without copying them.
 video_args() {
-    set -- -vsync no -fps 60
+    set -- -fps 60
     have=$(python3 -I -c '
 import gi
 gi.require_version("Gst", "1.0")
@@ -104,8 +105,8 @@ start() {
     # -nh: exact name; -p: fixed ports (TCP 7000,7001,7100 / UDP 6000,6001,7011)
     # -key: keep the same identity so the iPhone recognises this receiver.
     # stdbuf: uxplay buffers output when not on a terminal; keep the log current.
-    # IPHONE_MIRROR_VIDEO_ARGS replaces the video options (e.g. "-vsync" for
-    # UxPlay's defaults).
+    # IPHONE_MIRROR_VIDEO_ARGS replaces the video options (e.g. "-vsync no"
+    # for lower delay at the cost of smooth video).
     if [ -n "${IPHONE_MIRROR_VIDEO_ARGS+x}" ]; then
         # shellcheck disable=SC2086
         set -- $IPHONE_MIRROR_VIDEO_ARGS

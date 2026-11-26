@@ -77,7 +77,8 @@ class ScreenToggleTests(unittest.TestCase):
         self.assertEqual(self.run_cmd("--status").stdout.strip(), "running")
         log = Path(self.tmp, "cache/iphone-mirror-bridge/uxplay.log").read_text()
         self.assertIn("-n iPhone Mirror Bridge -nh -p", log)
-        self.assertIn("-vsync no -fps 60", log)  # low-latency defaults
+        self.assertIn("uxplay.pem -fps 60", log)  # video defaults
+        self.assertNotIn("-vsync no", log)  # keep timestamp sync: smooth video
         self.assertIn("Already running", self.run_cmd("--start").stdout)
         self.assertIn("stopped", self.run_cmd().stdout)
         self.assertEqual(self.run_cmd("--status").returncode, 3)
