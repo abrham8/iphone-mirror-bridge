@@ -208,7 +208,9 @@ class MirrorControllerTests(unittest.TestCase):
         self.assertFalse(mirror.starting)
         self.assertIn("Ready for screen mirroring", messages)
         log = Path(self.tmp, "cache/iphone-mirror-bridge/uxplay.log").read_text()
-        self.assertIn(f"unixfdsink socket-path={self.tmp}/v.sock", log)
+        # -vs must be a single element (UxPlay appends " name=<first word>_h264");
+        # the system-memory capsfilter goes into the converter (-vc).
+        self.assertIn(f"-vc videoconvert ! video/x-raw -vs unixfdsink socket-path={self.tmp}/v.sock", log)
         mirror.stop()
         self.assertFalse(mirror.running)
         spin(lambda: subprocess.run(["pgrep", "-x", "uxplay"], capture_output=True).returncode != 0, timeout=10)

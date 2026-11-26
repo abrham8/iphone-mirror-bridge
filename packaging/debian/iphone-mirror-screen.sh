@@ -90,11 +90,13 @@ print(*[n for n in ("vah264dec", "waylandsink") if Gst.ElementFactory.find(n)])
     case " $have " in *" vah264dec "*) set -- "$@" -vd "vah264dec compliance=flexible" ;; esac
     if [ -n "$IPHONE_MIRROR_EMBED_SOCKET" ]; then
         # Decoded frames go to the desktop app, which draws them in its window.
-        # "video/x-raw" (system memory) in front of unixfdsink: it accepts any
-        # caps, so the VA-API decoder would otherwise hand it GPU (VAMemory /
-        # DMABuf) frames that cannot be passed through the socket, the stream
-        # fails ("Internal data stream error") and the iPhone disconnects.
-        set -- "$@" -vs "video/x-raw ! unixfdsink socket-path=$IPHONE_MIRROR_EMBED_SOCKET"
+        # unixfdsink accepts any caps, so the VA-API decoder would hand it GPU
+        # (VAMemory/DMABuf) frames that cannot cross the socket ("Internal
+        # data stream error", iPhone disconnects). The converter (-vc) is
+        # spliced into UxPlay's pipeline verbatim, so a system-memory capsfilter
+        # goes there; -vs must stay a single element because UxPlay appends
+        # " name=<first word>_h264" to it.
+        set -- "$@" -vc "videoconvert ! video/x-raw" -vs "unixfdsink socket-path=$IPHONE_MIRROR_EMBED_SOCKET"
     elif [ -n "$WAYLAND_DISPLAY" ]; then
         case " $have " in *" waylandsink "*) set -- "$@" -vs waylandsink ;; esac
     fi
