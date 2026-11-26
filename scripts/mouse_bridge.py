@@ -18,7 +18,7 @@ import dbus.mainloop.glib
 from evdev import InputDevice, ecodes, list_devices
 from gi.repository import GLib
 
-from ble_hid import BleHid, find_adapter
+from ble_hid import BleHid, adapter_provides_device_info, find_adapter
 from hid_report import HotkeyDetector, ReportAccumulator
 
 LOG = logging.getLogger("mouse-bridge")
@@ -236,9 +236,14 @@ def main(argv=None) -> int:
     if not keyboards:
         LOG.warning("No keyboard with Ctrl+F8 found; mode switching is unavailable. Use --hotkey-device.")
 
+    include_device_info = not args.no_device_info
+    if include_device_info and adapter_provides_device_info(bus, adapter):
+        LOG.info("bluetoothd already provides a Device Information service; not adding another")
+        include_device_info = False
+
     controller = BridgeController(mouse, grab=not args.no_grab)
     ble = BleHid(bus, adapter, args.name, use_agent=not args.no_agent,
-                 include_device_info=not args.no_device_info)
+                 include_device_info=include_device_info)
     stop = threading.Event()
     loop = GLib.MainLoop()
     exit_code = 0

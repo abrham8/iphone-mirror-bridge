@@ -106,6 +106,14 @@ class Adapter(dbus.service.Object):
         self.props[str(prop)] = value
         self.log.append(f"Set {prop}={bool(value)}")
 
+    @dbus.service.method("org.freedesktop.DBus.Properties", in_signature="ss", out_signature="v")
+    def Get(self, iface, prop):
+        if prop == "UUIDs":
+            # Like a Debian bluetoothd with DeviceID configured.
+            return dbus.Array(["0000180a-0000-1000-8000-00805f9b34fb"], signature="s")
+        raise dbus.exceptions.DBusException("no such property",
+                                            name="org.freedesktop.DBus.Error.InvalidArgs")
+
     @dbus.service.method("org.bluez.GattManager1", in_signature="oa{sv}",
                          sender_keyword="sender", async_callbacks=("ok", "err"))
     def RegisterApplication(self, path, options, sender, ok, err):

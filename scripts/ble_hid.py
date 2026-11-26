@@ -440,6 +440,16 @@ def find_adapter(bus, requested: str | None = None) -> str:
     raise RuntimeError(f"No usable Bluetooth LE adapter: {detail}")
 
 
+def adapter_provides_device_info(bus, adapter_path: str) -> bool:
+    """True if bluetoothd already exposes a Device Information service (DeviceID set)."""
+    try:
+        props = dbus.Interface(bus.get_object(BLUEZ, adapter_path), DBUS_PROPS)
+        uuids = props.Get(ADAPTER, "UUIDs")
+    except dbus.DBusException:
+        return False
+    return DEVICE_INFO_UUID in {str(u).lower() for u in uuids}
+
+
 class BleHid:
     """Registers the GATT app, advertisement and agent with BlueZ."""
 

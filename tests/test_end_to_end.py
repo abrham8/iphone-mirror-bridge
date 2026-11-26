@@ -40,6 +40,7 @@ class EndToEndTests(unittest.TestCase):
 
     def test_reports_flow_and_shutdown_releases(self):
         wait_for(lambda: any(l.startswith("RegisterAdvertisement") for l in self.fake_log()), timeout=10)
+        self.assertIn("RegisterApplication /com/iphone_mirror_bridge services=2 chrcs=6", self.fake_log())
         sender = next(l.split()[1] for l in self.fake_log() if l.startswith("sender "))
         objects = call(dbus.Interface(self.client.get_object(sender, ble_hid.GattApplication.ROOT),
                                       ble_hid.DBUS_OM).GetManagedObjects)
@@ -62,6 +63,7 @@ class EndToEndTests(unittest.TestCase):
         self.assertEqual(self.bridge.returncode, 0, output)
         wait_for(lambda: received[-1] == bytes(4), timeout=2)
         self.assertIn("ungrabbed", output)
+        self.assertIn("already provides a Device Information service", output)
         log = self.fake_log()
         for entry in ("UnregisterAdvertisement", "UnregisterApplication", "UnregisterAgent"):
             self.assertTrue(any(line.startswith(entry) for line in log), (entry, log))
