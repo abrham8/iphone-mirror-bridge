@@ -130,7 +130,7 @@ def make_touchpad_translator(device: InputDevice, reports: ReportAccumulator, ar
     return TouchpadTranslator(reports, units_per_mm(ecodes.ABS_X), units_per_mm(ecodes.ABS_Y),
                               speed=args.touchpad_speed, scroll_mm_per_step=1.0 / args.scroll_speed,
                               natural_scroll=not args.reverse_scroll,
-                              tap_to_click=not args.no_tap)
+                              tap_to_click=not args.no_tap, three_finger_drag=not args.no_three_finger_drag)
 
 
 def find_keyboards(path: str | None = None, exclude: Iterable[str] = (),
@@ -317,6 +317,8 @@ def parse_args(argv=None):
     parser.add_argument("--reverse-scroll", action="store_true",
                         help="Touchpad: traditional instead of natural two-finger scrolling")
     parser.add_argument("--no-tap", action="store_true", help="Touchpad: disable tap-to-click")
+    parser.add_argument("--no-three-finger-drag", action="store_true",
+                        help="Touchpad: disable three-finger hold/drag")
     parser.add_argument("--adapter", help="Bluetooth adapter, e.g. hci0 or /org/bluez/hci0 (auto-detected)")
     parser.add_argument("--name", default="iPhone Mirror Bridge", help="BLE advertised name")
     parser.add_argument("--hotkey-device", help="Keyboard /dev/input/eventN for the Ctrl+F8 toggle")
@@ -370,7 +372,8 @@ def main(argv=None) -> int:
     reports = ReportAccumulator()
     touchpad = make_touchpad_translator(mouse, reports, args) if device_is_touchpad(mouse) else None
     if touchpad:
-        LOG.info("Touchpad mode: one finger moves, tap/press clicks, two fingers scroll or right-click")
+        LOG.info("Touchpad mode: one finger moves, tap/press clicks, two fingers scroll or right-click, "
+                 "three fingers hold/drag")
     ble_ref = {}
     controller = BridgeController(mouse, grab=not args.no_grab, reports=reports, touchpad=touchpad,
                                   phone_connected=lambda: "ble" in ble_ref and ble_ref["ble"].subscribed)

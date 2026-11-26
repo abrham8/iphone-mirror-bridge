@@ -153,7 +153,9 @@ class TouchpadTranslator:
     * One finger moves the pointer.
     * Two fingers scroll vertically.
     * Pressing the pad clicks: left, or right with two fingers on the pad.
-    * Tapping clicks: one finger = left, two = right, three = middle.
+    * Tapping clicks: one finger = left, two = right.
+    * Three fingers press and hold the left button: keep still for a
+      long-press, move to drag, lift to release (three-finger drag).
 
     Positions are in device units; units_per_mm converts them to millimetres.
     Output goes to a ReportAccumulator.
@@ -164,7 +166,7 @@ class TouchpadTranslator:
 
     def __init__(self, reports: ReportAccumulator, units_per_mm_x: float, units_per_mm_y: float,
                  speed: float = 20.0, scroll_mm_per_step: float = 1.0, natural_scroll: bool = True,
-                 tap_to_click: bool = True):
+                 tap_to_click: bool = True, three_finger_drag: bool = True):
         self.reports = reports
         self.upmm_x = units_per_mm_x or 1.0
         self.upmm_y = units_per_mm_y or 1.0
@@ -172,6 +174,7 @@ class TouchpadTranslator:
         self.scroll_mm_per_step = scroll_mm_per_step
         self.natural_scroll = natural_scroll
         self.tap_to_click = tap_to_click
+        self.three_finger_drag = three_finger_drag
         self.reset()
 
     def reset(self) -> None:
@@ -188,6 +191,11 @@ class TouchpadTranslator:
         self._travel_mm = 0.0
         self._clicked = False
         self._click_button: int | None = None
+        self._dragging = False
+
+    @property
+    def dragging(self) -> bool:
+        return self._dragging
 
     # -- event inputs ---------------------------------------------------------
     def set_touch(self, touching: bool) -> None:
@@ -233,6 +241,10 @@ class TouchpadTranslator:
                 self._last = None  # finger count changed: avoid a jump
                 self._scroll_mm = 0.0
             self._tap_fingers = max(self._tap_fingers, fingers)
+            if fingers >= 3 and self.three_finger_drag and not self._dragging:
+                self._dragging = True
+                self._clicked = True  # not a tap
+                self.reports.set_button(0, True)
             if self._x is not None and self._y is not None:
                 if self._last is not None:
                     self._move(fingers, self._x - self._last[0], self._y - self._last[1])
@@ -246,7 +258,7 @@ class TouchpadTranslator:
     def _move(self, fingers: int, du: int, dv: int) -> None:
         dx_mm, dy_mm = du / self.upmm_x, dv / self.upmm_y
         self._travel_mm += abs(dx_mm) + abs(dy_mm)
-        if fingers == 1:
+        if fingers == 1 or self._dragging:
             self._frac_x += dx_mm * self.speed
             self._frac_y += dy_mm * self.speed
             dx, dy = int(self._frac_x), int(self._frac_y)
@@ -264,11 +276,14 @@ class TouchpadTranslator:
                 self.reports.add_motion(wheel=steps if self.natural_scroll else -steps)
 
     def _finish_touch(self, timestamp: float) -> None:
+        if self._dragging:
+            self._dragging = False
+            self.reports.set_button(0, False)
         is_tap = (self.tap_to_click and not self._clicked
                   and timestamp - self._tap_start <= self.TAP_MAX_SECONDS
                   and self._travel_mm <= self.TAP_MAX_TRAVEL_MM)
         if is_tap:
-            button = {1: 0, 2: 1, 3: 2}.get(self._tap_fingers)
+            button = {1: 0, 2: 1, 3: 0}.get(self._tap_fingers)
             if button is not None:
                 self.reports.set_button(button, True)
                 self.reports.set_button(button, False)

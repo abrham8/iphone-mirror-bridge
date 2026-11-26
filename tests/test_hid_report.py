@@ -220,6 +220,32 @@ class TouchpadTranslatorTests(unittest.TestCase):
         self.lift(fingers=2)
         self.assertEqual(self.reports(), [(2, 0, 0, 0), (0, 0, 0, 0)])
 
+    def test_three_finger_hold_and_drag(self):
+        self.touch(fingers=1, x=100)
+        self.pad.set_finger_tool(1, False)
+        self.pad.set_finger_tool(3, True)
+        self.frame(x=100)           # three fingers down: press and hold
+        self.assertTrue(self.pad.dragging)
+        self.frame(x=130, dt=0.5)   # drag with the button held
+        self.frame(x=150, dt=0.5)
+        self.lift(fingers=3)        # lift: release, and no extra tap click
+        self.assertEqual(self.reports(), [(1, 0, 0, 0), (1, 50, 0, 0), (0, 0, 0, 0)])
+        self.assertFalse(self.pad.dragging)
+
+    def test_three_finger_hold_without_moving_is_long_press(self):
+        self.touch(fingers=3)
+        self.frame(dt=1.0)
+        self.assertEqual(self.reports(), [(1, 0, 0, 0)])  # still held
+        self.lift(fingers=3)
+        self.assertEqual(self.reports(), [(0, 0, 0, 0)])
+
+    def test_three_finger_drag_can_be_disabled(self):
+        self.pad.three_finger_drag = False
+        self.touch(fingers=3)
+        self.frame(x=200)
+        self.lift(fingers=3)
+        self.assertEqual(self.reports(), [])
+
     def test_click_and_drag(self):
         self.touch(x=100)
         self.pad.set_click(True)

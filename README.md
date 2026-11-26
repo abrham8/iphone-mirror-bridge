@@ -9,7 +9,7 @@ Early hardware-integration project, now partly hardware-verified. First real tes
 | Component | Status |
 |---|---|
 | evdev mouse discovery and event parsing | Implemented; hardware testing needed |
-| Laptop touchpad (move, tap, click, two-finger scroll) | Movement and clicks verified on hardware; scroll tuning in progress |
+| Laptop touchpad (move, tap, click, two-finger scroll, three-finger drag) | Movement and clicks verified on hardware; scroll tuning in progress |
 | HID mouse report descriptor and encoding | Implemented; descriptor validation needed |
 | BlueZ GATT HID service and advertisement | Verified with BlueZ 5.82 and iOS |
 | Pairing agent (Just Works, auto-trust) | Verified with iOS |

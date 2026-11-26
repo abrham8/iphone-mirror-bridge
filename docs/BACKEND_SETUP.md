@@ -94,7 +94,7 @@ sudo python3 scripts/mouse_bridge.py --device /dev/input/eventN --hotkey-device 
 sudo python3 scripts/mouse_bridge.py --touchpad --debug
 ```
 
-One finger moves the pointer, tapping clicks (two-finger tap = right click), pressing the pad clicks (two fingers = right click), and two fingers scroll. Options: `--touchpad-speed 20` (higher = faster), `--scroll-speed 1` (higher = faster scrolling), `--reverse-scroll`, `--no-tap`. iOS also has its own speed setting under AssistiveTouch → Tracking Speed. In phone mode the touchpad is grabbed, so the desktop does not move at the same time.
+One finger moves the pointer, tapping clicks (two-finger tap = right click), pressing the pad clicks (two fingers = right click), and two fingers scroll. Three fingers press and hold: keep them still for a long-press, move them to drag, lift to drop (`--no-three-finger-drag` disables this). Options: `--touchpad-speed 20` (higher = faster), `--scroll-speed 1` (higher = faster scrolling), `--reverse-scroll`, `--no-tap`. iOS also has its own speed setting under AssistiveTouch → Tracking Speed. In phone mode the touchpad is grabbed, so the desktop does not move at the same time.
 
 Use `--start-active` to switch to phone mode automatically once the iPhone connects. Phone mode is only entered while the iPhone is connected, and the device returns to the laptop if it disconnects. Keep a keyboard available: phone mode grabs the mouse from the local desktop.
 
