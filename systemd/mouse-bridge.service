@@ -1,0 +1,20 @@
+[Unit]
+Description=iPhone Mirror Bridge BLE HID mouse
+After=bluetooth.service
+Wants=bluetooth.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/iphone-mirror-bridge
+ExecStart=/usr/bin/python3 /opt/iphone-mirror-bridge/scripts/mouse_bridge.py
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/iphone-mirror-bridge
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
