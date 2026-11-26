@@ -1,8 +1,9 @@
 # iPhone Mirror Bridge
 
-Use your Linux laptop's touchpad (or a mouse) to control your iPhone.
+See your iPhone's screen on your Linux computer and control it with the touchpad (or a mouse).
 
-The computer acts as a Bluetooth mouse for the iPhone. With AssistiveTouch on, you get a pointer on the iPhone that you move, click, scroll and drag from the touchpad. Press **Ctrl+F8** to switch the touchpad between the computer and the iPhone. Screen mirroring (seeing the iPhone screen on Linux) is handled separately by [UxPlay](#screen-mirroring).
+- **Control:** the computer acts as a Bluetooth mouse for the iPhone. With AssistiveTouch on, you get a pointer on the iPhone that you move, click, scroll and drag from the touchpad. Press **Ctrl+F8** to switch the touchpad between the computer and the iPhone.
+- **Screen:** the **iPhone Screen Mirroring** app shows the iPhone screen in a window using AirPlay.
 
 > Status: beta (0.1.0). Tested on Debian 13 with an ASUS laptop touchpad and an iPhone. Other hardware should work but has not been tested yet; reports are welcome.
 
@@ -39,6 +40,13 @@ The iPhone reconnects by itself from now on.
 
 While the iPhone is in control, the touchpad does not move the computer's cursor. If the iPhone disconnects, the touchpad returns to the computer automatically.
 
+## See the iPhone screen
+
+1. Open **iPhone Screen Mirroring** from your application menu. A notification says it is ready.
+2. On the iPhone: open **Control Center → Screen Mirroring** and choose **iPhone Mirror Bridge**.
+
+The iPhone and computer must be on the same Wi-Fi network. To stop, open the app again (or right-click it → Stop). From a terminal: `iphone-mirror-screen --start`, `--stop`, `--status`.
+
 ## Settings
 
 Edit `/etc/iphone-mirror-bridge/bridge.conf`, then run `sudo systemctl restart iphone-mirror-bridge`. Examples:
@@ -56,6 +64,7 @@ All options: `iphone-mirror-bridge --help` or `man iphone-mirror-bridge`. The iP
 - **The iPhone does not see "iPhone Mirror Bridge":** check `systemctl status iphone-mirror-bridge` and that Bluetooth is on (`bluetoothctl show`).
 - **Connected, but the pointer does not move:** forget the device on the iPhone (Settings → Bluetooth → ⓘ → Forget This Device), run `bluetoothctl devices` and `bluetoothctl remove <iPhone address>` on the computer, then pair again.
 - **Ctrl+F8 does nothing:** on some laptops F8 is a media key; try Fn+Ctrl+F8, or set `--hotkey F12`.
+- **Screen mirroring does not appear on the iPhone:** both devices must be on the same network, and a firewall must allow mDNS (UDP 5353), TCP 7000, 7001, 7100 and UDP 6000, 6001, 7011. Log: `~/.cache/iphone-mirror-bridge/uxplay.log`.
 - **Logs:** `journalctl -u iphone-mirror-bridge -f`
 
 ## Uninstall
@@ -64,9 +73,6 @@ All options: `iphone-mirror-bridge --help` or `man iphone-mirror-bridge`. The iP
 sudo apt remove iphone-mirror-bridge
 ```
 
-## Screen mirroring
-
-Install UxPlay (`sudo apt install uxplay`) and run `uxplay -n "iPhone Mirror Bridge"`. On the iPhone, open Control Center → Screen Mirroring and pick it. Both devices must be on the same network. See [Backend setup](docs/BACKEND_SETUP.md#uxplay-airplay-receiver).
 
 ## Limitations
 

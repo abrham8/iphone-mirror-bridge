@@ -134,21 +134,10 @@ The tests cover HID report encoding, mode switching, the D-Bus GATT objects (usi
 
 ## UxPlay AirPlay receiver
 
-Install UxPlay separately from the BLE bridge. On Debian releases that package it:
+The package installs UxPlay and an **iPhone Screen Mirroring** launcher (`iphone-mirror-screen`). It runs, as the desktop user:
 
 ```bash
-sudo apt install uxplay
-uxplay -h
+uxplay -n "iPhone Mirror Bridge" -nh -p -key ~/.cache/iphone-mirror-bridge/uxplay.pem
 ```
 
-The repository includes a **user** service unit at `systemd/uxplay.service`. Install it for the desktop account (not as root):
-
-```bash
-mkdir -p ~/.config/systemd/user
-cp systemd/uxplay.service ~/.config/systemd/user/
-systemctl --user daemon-reload
-systemctl --user enable --now uxplay.service
-systemctl --user status uxplay.service
-```
-
-The unit assumes UxPlay is installed at `/usr/bin/uxplay`. If `command -v uxplay` reports another path, edit `ExecStart` accordingly. UxPlay needs an active graphical session to display video unless you configure a suitable headless video sink. Ensure mDNS/DNS-SD traffic (UDP 5353) and UxPlay's negotiated media ports are allowed on the local network. See the [upstream UxPlay documentation](https://github.com/FDH2/UxPlay) for GStreamer sink, firewall, and display configuration.
+`-p` uses fixed ports (TCP 7000, 7001, 7100; UDP 6000, 6001, 7011) so firewall rules are predictable; mDNS (UDP 5353) must also be allowed. UxPlay needs a graphical session to show video. Its output goes to `~/.cache/iphone-mirror-bridge/uxplay.log`. Anyone on the same network can mirror to the receiver while it runs; stop it when not in use. See the [upstream UxPlay documentation](https://github.com/FDH2/UxPlay) for GStreamer sink and display options.
