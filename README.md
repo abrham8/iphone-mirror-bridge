@@ -91,6 +91,6 @@ sudo scripts/install.sh                         # build and install the .deb
 - `tests/`: unit, D-Bus (fake BlueZ) and end-to-end tests. CI also installs the package on a clean Debian 13.
 - `docs/`: [backend setup](docs/BACKEND_SETUP.md), [hardware validation](docs/HARDWARE_VALIDATION.md), [iPhone setup](docs/IPHONE_SETUP.md), [remote access](docs/REMOTE_ACCESS.md).
 
-Hardware results so far (Debian 13.8, kernel 7.3, BlueZ 5.82, Intel Bluetooth, ASUS touchpad): pairing, reconnect, movement, clicks, scrolling, three-finger drag and mode switching verified. Not yet verified: right-click, boot service, reconnect after reboot, external mouse mode, other adapters and distributions.
+Hardware results so far (Debian 13.8 with Kicksecure hardening, kernel 7.3, BlueZ 5.82, Intel Bluetooth, ASUS touchpad): .deb install, boot service, reconnect after reboot, pairing, movement, clicks, right-click, scrolling, three-finger drag and mode switching verified. Not yet verified: external mouse mode, other adapters and distributions.
 
 Input stays on your computer and Bluetooth link; there is no cloud service.
