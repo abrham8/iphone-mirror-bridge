@@ -109,8 +109,11 @@ def find_mouse_device(path: str | None = None, touchpad: bool = False) -> InputD
     if touchpad:
         candidates.sort(key=touchpad_score, reverse=True)  # stable: keeps path order on ties
     if len(candidates) > 1:
-        LOG.warning("Multiple %ss found (%s); selecting %s. Use --device to choose explicitly.", kind,
-                    ", ".join(f"{d.path} {d.name!r}" for d in candidates), candidates[0].path)
+        # Only warn when the choice is a guess (no clear best touchpad).
+        clear_winner = touchpad and touchpad_score(candidates[0]) > touchpad_score(candidates[1])
+        (LOG.debug if clear_winner else LOG.warning)(
+            "Multiple %ss found (%s); selecting %s. Use --device to choose explicitly.", kind,
+            ", ".join(f"{d.path} {d.name!r}" for d in candidates), candidates[0].path)
     selected = candidates[0]
     for extra in candidates[1:]:
         extra.close()

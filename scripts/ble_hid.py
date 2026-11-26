@@ -477,9 +477,21 @@ def set_le_connection_interval(hci: str, min_units: int, max_units: int,
             min_file.write_text(str(min_units))
         return old
     except (OSError, ValueError) as exc:
-        LOG.info("Could not set the LE connection interval at runtime (%s). If the pointer lags, run "
-                 "once: sudo scripts/set_le_interval.sh", exc)
+        if bluez_conf_sets_interval():
+            LOG.debug("Runtime LE interval change unavailable (%s); using main.conf setting", exc)
+        else:
+            LOG.info("Could not set the LE connection interval at runtime (%s). If the pointer lags, "
+                     "run once: sudo scripts/set_le_interval.sh", exc)
         return None
+
+
+def bluez_conf_sets_interval(path: str = "/etc/bluetooth/main.conf") -> bool:
+    """True if BlueZ's main.conf already configures LE connection intervals."""
+    try:
+        with open(path, encoding="utf-8") as conf:
+            return any(line.strip().startswith("MinConnectionInterval") for line in conf)
+    except OSError:
+        return False
 
 
 class BleHid:
