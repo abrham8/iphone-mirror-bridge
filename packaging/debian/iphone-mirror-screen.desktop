@@ -8,7 +8,7 @@ Icon=iphone-mirror-bridge
 Terminal=false
 Categories=Utility;
 Keywords=iPhone;AirPlay;mirror;screen;uxplay;
-Actions=Start;Stop;
+Actions=Start;Stop;AllowFirewall;
 
 [Desktop Action Start]
 Name=Start
@@ -17,3 +17,7 @@ Exec=iphone-mirror-screen --start
 [Desktop Action Stop]
 Name=Stop
 Exec=iphone-mirror-screen --stop
+
+[Desktop Action AllowFirewall]
+Name=Allow through the firewall
+Exec=iphone-mirror-screen --allow-firewall

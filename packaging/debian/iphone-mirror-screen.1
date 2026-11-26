@@ -3,7 +3,7 @@
 iphone-mirror-screen \- start or stop the iPhone screen-mirroring receiver
 .SH SYNOPSIS
 .B iphone-mirror-screen
-[\fB\-\-start\fR|\fB\-\-stop\fR|\fB\-\-status\fR]
+[\fB\-\-start\fR|\fB\-\-stop\fR|\fB\-\-status\fR|\fB\-\-allow\-firewall\fR]
 .SH DESCRIPTION
 Starts an AirPlay receiver (UxPlay) named "iPhone Mirror Bridge" for the
 current desktop user. On the iPhone, open Control Center, tap Screen
@@ -13,7 +13,15 @@ application menu entry runs this command.
 .PP
 The iPhone and computer must be on the same network. The receiver uses
 TCP ports 7000, 7001, 7100 and UDP ports 6000, 6001, 7011, plus mDNS
-(UDP 5353); allow them if a firewall is enabled.
+(UDP 5353); allow them if a firewall is enabled. If the receiver is listed
+on the iPhone but connecting fails with "Unable to connect", a firewall is
+blocking these ports.
+.PP
+.B \-\-allow\-firewall
+lets the iPhone through Wild OS's firewall: it marks the current network as
+Home and allows the ports above for devices on that network, through
+Wild OS's own settings tool (asks for an administrator password). When the
+receiver starts and that firewall would block it, a notification says so.
 .SH FILES
 .I ~/.cache/iphone-mirror-bridge/uxplay.log
 .SH SEE ALSO

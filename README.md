@@ -65,6 +65,7 @@ All options: `iphone-mirror-bridge --help` or `man iphone-mirror-bridge`. The iP
 - **Connected, but the pointer does not move:** forget the device on the iPhone (Settings → Bluetooth → ⓘ → Forget This Device), run `bluetoothctl devices` and `bluetoothctl remove <iPhone address>` on the computer, then pair again.
 - **Ctrl+F8 does nothing:** on some laptops F8 is a media key; try Fn+Ctrl+F8, or set `--hotkey F12`.
 - **Screen mirroring does not appear on the iPhone:** both devices must be on the same network, and a firewall must allow mDNS (UDP 5353), TCP 7000, 7001, 7100 and UDP 6000, 6001, 7011. Log: `~/.cache/iphone-mirror-bridge/uxplay.log`.
+- **The receiver is listed on the iPhone but it says "Unable to connect":** a firewall lets the iPhone find the receiver (mDNS) but blocks the connection. On Wild OS, right-click **iPhone Screen Mirroring → Allow through the firewall** (or run `iphone-mirror-screen --allow-firewall`). This marks the current network as Home and allows the ports above for devices on that network only. With other firewalls, allow the ports above yourself.
 - **Logs:** `journalctl -u iphone-mirror-bridge -f`
 
 ## Uninstall

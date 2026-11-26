@@ -82,5 +82,66 @@ class ScreenToggleTests(unittest.TestCase):
         self.assertEqual(self.run_cmd("--status").returncode, 3)
 
 
+class WildosFirewallTests(unittest.TestCase):
+    """iphone-mirror-screen --allow-firewall against a fake Wild OS firewall."""
+
+    def setUp(self):
+        import json
+        import os
+        import tempfile
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        bin_dir = self.tmp / "bin"
+        bin_dir.mkdir()
+        self.calls = self.tmp / "calls"
+        fw = self.tmp / "settings-firewall"
+        fw.write_text(f'#!/bin/sh\necho "$*" >> {self.calls}\n')
+        fw.chmod(0o755)
+        pkexec = bin_dir / "pkexec"
+        pkexec.write_text('#!/bin/sh\nexec "$@"\n')
+        pkexec.chmod(0o755)
+        self.state = self.tmp / "state.json"
+        self.config = self.tmp / "firewall.json"
+        self.state.write_text(json.dumps({"enabled": True, "loaded": True, "level": "standard",
+                                          "networks": [{"uuid": "e538feab-05bf", "trust": ""}]}))
+        self.env = dict(os.environ, PATH=f"{bin_dir}:{os.environ['PATH']}", HOME=str(self.tmp),
+                        WILDOS_FIREWALL=str(fw), WILDOS_STATE=str(self.state),
+                        WILDOS_CONFIG=str(self.config))
+
+    def run_cmd(self, *args):
+        return subprocess.run(["sh", str(REPO / "packaging/debian/iphone-mirror-screen.sh"), *args],
+                              env=self.env, capture_output=True, text=True)
+
+    def test_marks_network_home_and_allows_ports(self):
+        out = self.run_cmd("--allow-firewall")
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        calls = self.calls.read_text().splitlines()
+        self.assertEqual(calls[0], "trust e538feab-05bf home")
+        self.assertIn("allow iPhone Screen Mirroring 7000 tcp network - forever", calls)
+        self.assertIn("allow iPhone Screen Mirroring 7011 udp network - forever", calls)
+        self.assertEqual(len(calls), 7)
+
+    def test_only_missing_rules_are_added(self):
+        import json
+        self.state.write_text(json.dumps({"enabled": True, "loaded": True, "level": "standard",
+                                          "networks": [{"uuid": "e538feab-05bf", "trust": "home"}]}))
+        self.config.write_text(json.dumps({"rules": [
+            {"port": p, "proto": "tcp", "scope": "network", "on": True} for p in (7000, 7001, 7100)]
+            + [{"port": p, "proto": "udp", "scope": "network"} for p in (6000, 6001)]}))
+        self.run_cmd("--allow-firewall")
+        self.assertEqual(self.calls.read_text().splitlines(),
+                         ["allow iPhone Screen Mirroring 7011 udp network - forever"])
+        self.config.write_text(self.config.read_text().replace("6001", "7011").replace(
+            '"rules": [', '"rules": [{"port": 6001, "proto": "both", "scope": "anyone"}, '))
+        self.calls.unlink()
+        self.assertIn("Nothing to change", self.run_cmd("--allow-firewall").stdout)
+        self.assertFalse(self.calls.exists())
+
+    def test_nothing_without_wildos(self):
+        self.env["WILDOS_FIREWALL"] = str(self.tmp / "missing")
+        self.assertIn("Nothing to change", self.run_cmd("--allow-firewall").stdout)
+        self.assertFalse(self.calls.exists())
+
+
 if __name__ == "__main__":
     unittest.main()
